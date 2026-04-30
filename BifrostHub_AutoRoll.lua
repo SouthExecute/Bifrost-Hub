@@ -370,29 +370,23 @@ local function GetBossInWorkspace()
         Workspace, 
         Workspace:FindFirstChild("Mobs"), 
         Workspace:FindFirstChild("Entities"), 
-        Workspace:FindFirstChild("Bosses")
+        Workspace:FindFirstChild("Bosses"),
+        Workspace:FindFirstChild("LiveBosses")
     }
     
-    -- Busca rápida direta
+    -- Busca otimizada com GetChildren nas pastas raízes (Evita Crash de Executor por excesso de peças)
     for _, folder in ipairs(possibleFolders) do
         if folder then
-            local b = folder:FindFirstChild(mappedName) or folder:FindFirstChild(bossKey)
-            if b and b:FindFirstChild("Humanoid") and b.Humanoid.MaxHealth > 100 then
-                cachedBoss = b
-                return b
-            end
-        end
-    end
-    
-    -- Busca profunda caso a busca rápida falhe (procurando parte do nome)
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.MaxHealth > 100 then
-            -- Ignora jogadores
-            if not Players:GetPlayerFromCharacter(obj) then
-                local objName = string.lower(obj.Name)
-                if string.find(objName, string.lower(mappedName)) or string.find(objName, string.lower(bossKey)) then
-                    cachedBoss = obj
-                    return obj
+            for _, obj in ipairs(folder:GetChildren()) do
+                if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.MaxHealth > 100 then
+                    -- Ignora jogadores
+                    if not Players:GetPlayerFromCharacter(obj) then
+                        local objName = string.lower(obj.Name)
+                        if string.find(objName, string.lower(mappedName)) or string.find(objName, string.lower(bossKey)) then
+                            cachedBoss = obj
+                            return obj
+                        end
+                    end
                 end
             end
         end

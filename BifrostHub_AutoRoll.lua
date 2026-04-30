@@ -8,8 +8,26 @@ local Workspace = game:GetService("Workspace")
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
+
+-- ==========================================
+-- ANTI-CRASH TELEPORT HANDLER
+-- ==========================================
+-- Captura erros de teleporte (como Erro 279 ou servidor lotado) e impede que o Roblox feche abruptamente.
+local connectionFailed
+connectionFailed = TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
+    if player == Players.LocalPlayer then
+        warn("Teleport Falhou! Tentando cancelar estado de Hop. Motivo: " .. tostring(errorMessage))
+        -- Libera o isHopping se estivesse preso para tentar outro servidor
+        task.spawn(function()
+            task.wait(2)
+            if getfenv().isHopping ~= nil then
+                getfenv().isHopping = false
+            end
+        end)
+    end
+end)
+
 repeat task.wait() until Players.LocalPlayer
--- Aguardar o boneco carregar completamente (segurança extra para teleporte)
 repeat task.wait() until Players.LocalPlayer.Character
 
 local Omni = require(ReplicatedStorage:WaitForChild("Omni"))
@@ -118,40 +136,35 @@ end
 
 local TokenLabel = MainTab:CreateLabel("Rename Tokens: Procurando...")
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(1.5) do
         local tokens = 0
         local found = false
-        pcall(function()
+        
+        local success, err = pcall(function()
             local items = Omni.Data.Inventory.Items
             if items then
                 for k, v in pairs(items) do
                     if type(k) == "string" and string.find(string.lower(k), "rename token") then
                         found = true
-                        if type(v) == "table" then
-                            tokens = tokens + (v.Amount or v.Count or v.Quantity or 1)
-                        elseif type(v) == "number" then
-                            tokens = tokens + v
-                        end
+                        tokens = tokens + (type(v) == "table" and (v.Amount or v.Count or v.Quantity or 1) or (type(v) == "number" and v or 1))
                     end
                 end
             end
             
-            local consumables = Omni.Data.Inventory.Consumables
-            if consumables and not found then
-                for k, v in pairs(consumables) do
-                    if type(k) == "string" and string.find(string.lower(k), "rename token") then
-                        found = true
-                        if type(v) == "table" then
-                            tokens = tokens + (v.Amount or v.Count or v.Quantity or 1)
-                        elseif type(v) == "number" then
-                            tokens = tokens + v
+            if not found then
+                local consumables = Omni.Data.Inventory.Consumables
+                if consumables then
+                    for k, v in pairs(consumables) do
+                        if type(k) == "string" and string.find(string.lower(k), "rename token") then
+                            found = true
+                            tokens = tokens + (type(v) == "table" and (v.Amount or v.Count or v.Quantity or 1) or (type(v) == "number" and v or 1))
                         end
                     end
                 end
             end
         end)
         
-        if found then
+        if success and found then
             TokenLabel:Set("Rename Tokens: " .. tostring(tokens))
         else
             TokenLabel:Set("Rename Tokens: ??? (Não encontrado automaticamente)")
@@ -395,15 +408,14 @@ local function GetBossInWorkspace()
     return nil
 end
 
-local isHopping = false
+getfenv().isHopping = false
 local function ForceServerHop()
-    if isHopping then return end
-    isHopping = true
+    if getfenv().isHopping then return end
+    getfenv().isHopping = true
     
     Rayfield:Notify({Title="Server Hop", Content="Procurando novo servidor público...", Duration=5})
     
     local placeId = game.PlaceId
-    -- Mudando sortOrder para Desc para pegar servidores ativos em vez de servidores vazios (ghost servers)
     local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100", placeId)
     
     local success, result = pcall(function()
@@ -419,27 +431,27 @@ local function ForceServerHop()
             local validServers = {}
             for _, server in ipairs(data.data) do
                 if type(server) == "table" and server.playing and server.maxPlayers then
-                    -- Filtra: não está cheio, não é o atual, e tem pelo menos 2 players (evita ghost servers quebrados)
-                    if server.playing >= 2 and server.playing < server.maxPlayers and server.id ~= game.JobId then
+                    -- Adicionado filtro de "ping": ignora servidores injogáveis ou morrendo
+                    local pingOk = (server.ping ~= nil and server.ping < 300) or true
+                    if server.playing >= 2 and server.playing < server.maxPlayers and server.id ~= game.JobId and pingOk then
                         table.insert(validServers, server.id)
                     end
                 end
             end
             
             if #validServers > 0 then
-                -- Escolhe um servidor aleatório da lista para evitar focar sempre no mesmo servidor bugado
                 local randomServerId = validServers[math.random(1, #validServers)]
                 pcall(function()
                     TeleportService:TeleportToPlaceInstance(placeId, randomServerId, Players.LocalPlayer)
                 end)
-                task.wait(10) -- Mais tempo para o Teleport carregar sem bugar
-                isHopping = false
+                task.wait(15) -- Longo delay para suportar tempo de fila do Roblox
+                getfenv().isHopping = false
                 return
             end
         end
     end
     
-    isHopping = false
+    getfenv().isHopping = false
     Rayfield:Notify({Title="Server Hop", Content="Nenhum servidor adequado encontrado.", Duration=3})
 end
 
@@ -579,7 +591,12 @@ ConfigTab:CreateButton({
 -- Força a execução do farm caso o AutoFarm esteja ativado no load
 if HubConfig.AutoFarm then
     task.spawn(function()
-        task.wait(1)
-        HandleFarmToggle(true)
+        -- Aguardar firmemente a UI do jogo terminar de carregar (previne o Crash do "Menu Principal")
+        local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui", 30)
+        task.wait(2) -- Tempo extra de carência para os scripts do jogo iniciarem
+        
+        if HubConfig.AutoFarm then
+            HandleFarmToggle(true)
+        end
     end)
 end

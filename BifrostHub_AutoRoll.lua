@@ -136,6 +136,7 @@ end
 
 local TokenLabel = MainTab:CreateLabel("Rename Tokens: Procurando...")
 task.spawn(function()
+    local lastTokenText = ""
     while task.wait(1.5) do
         local tokens = 0
         local found = false
@@ -164,10 +165,16 @@ task.spawn(function()
             end
         end)
         
+        local newText = ""
         if success and found then
-            TokenLabel:Set("Rename Tokens: " .. tostring(tokens))
+            newText = "Rename Tokens: " .. tostring(tokens)
         else
-            TokenLabel:Set("Rename Tokens: ??? (Não encontrado automaticamente)")
+            newText = "Rename Tokens: ??? (Não encontrado automaticamente)"
+        end
+        
+        if newText ~= lastTokenText then
+            TokenLabel:Set(newText)
+            lastTokenText = newText
         end
     end
 end)
@@ -510,9 +517,16 @@ local function HandleFarmToggle(Value)
         FarmStatusLabel:Set("Status: Iniciando rotina...")
         
         farmTask = task.spawn(function()
-            -- Espera inicial LONGA para garantir que o mapa carregue.
-            -- Teleportar rápido demais logo ao entrar no jogo causa Crash no Client do Roblox!
-            task.wait(15) 
+            -- Delay de segurança inicial para garantir que o cliente carregue o mapa e as instâncias antes do loop
+            task.wait(15)
+            
+            local lastFarmText = ""
+            local function SafeSetStatus(text)
+                if text ~= lastFarmText then
+                    pcall(function() FarmStatusLabel:Set(text) end)
+                    lastFarmText = text
+                end
+            end
             
             while autoFarmEnabled do
                 local success, err = pcall(function()
@@ -521,7 +535,7 @@ local function HandleFarmToggle(Value)
                     
                     if boss and humanoid and humanoid.Health > 0 then
                         -- Boss encontrado e vivo
-                        FarmStatusLabel:Set("Status: Atacando " .. boss.Name .. " (" .. math.floor(humanoid.Health) .. " HP)")
+                        SafeSetStatus("Status: Atacando " .. boss.Name .. " (" .. math.floor(humanoid.Health) .. " HP)")
                         pcall(function()
                             local dataRemote = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
                             if dataRemote then
@@ -533,11 +547,11 @@ local function HandleFarmToggle(Value)
                     else
                         -- Boss não encontrado ou morto
                         if HubConfig.AutoHop then
-                            FarmStatusLabel:Set("Status: Boss ausente. Iniciando Server Hop...")
+                            SafeSetStatus("Status: Boss ausente. Iniciando Server Hop...")
                             ForceServerHop()
                             task.wait(10) -- Aguarda o tempo de teleporte
                         else
-                            FarmStatusLabel:Set("Status: Boss ausente. Aguardando spawn...")
+                            SafeSetStatus("Status: Boss ausente. Aguardando spawn...")
                             task.wait(1) -- Delay seguro
                         end
                     end

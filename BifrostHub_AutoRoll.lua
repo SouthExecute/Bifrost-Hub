@@ -465,68 +465,72 @@ BossTab:CreateToggle({
 local FarmStatusLabel = BossTab:CreateLabel("Status: Aguardando...")
 
 local FarmBossToggle
+
+local function HandleFarmToggle(Value)
+    autoFarmEnabled = Value
+    HubConfig.AutoFarm = Value
+    SaveConfig()
+    
+    if autoFarmEnabled then
+        if farmTask then
+            task.cancel(farmTask)
+        end
+        
+        FarmStatusLabel:Set("Status: Iniciando rotina...")
+        
+        farmTask = task.spawn(function()
+            -- Espera crucial inicial para dar tempo do mapa e do Boss spawnarem no Client
+            task.wait(4) 
+            
+            while autoFarmEnabled do
+                local success, err = pcall(function()
+                    local boss = GetBossInWorkspace()
+                    local humanoid = boss and boss:FindFirstChildOfClass("Humanoid")
+                    
+                    if boss and humanoid and humanoid.Health > 0 then
+                        -- Boss encontrado e vivo
+                        FarmStatusLabel:Set("Status: Atacando " .. boss.Name .. " (" .. math.floor(humanoid.Health) .. " HP)")
+                        pcall(function()
+                            local dataRemote = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
+                            if dataRemote then
+                                local args = { { { "General", "Attack", "Click", {}, n = 4 }, "\002" } }
+                                dataRemote:FireServer(unpack(args))
+                            end
+                        end)
+                        task.wait(0.2) -- Otimizado: sem lag
+                    else
+                        -- Boss não encontrado ou morto
+                        if HubConfig.AutoHop then
+                            FarmStatusLabel:Set("Status: Boss ausente. Iniciando Server Hop...")
+                            ForceServerHop()
+                            task.wait(10) -- Aguarda o tempo de teleporte
+                        else
+                            FarmStatusLabel:Set("Status: Boss ausente. Aguardando spawn...")
+                            task.wait(1) -- Delay seguro
+                        end
+                    end
+                end)
+                
+                if not success then
+                    warn("Erro no FarmLoop: ", tostring(err))
+                    task.wait(1)
+                end
+            end
+        end)
+    else
+        if farmTask then
+            task.cancel(farmTask)
+            farmTask = nil
+        end
+        FarmStatusLabel:Set("Status: Farm Parado.")
+    end
+end
+
 FarmBossToggle = BossTab:CreateToggle({
     Name = "Auto-Farm Boss",
     CurrentValue = HubConfig.AutoFarm,
     Flag = "FarmBossToggle",
-    Callback = function(Value)
-        autoFarmEnabled = Value
-        HubConfig.AutoFarm = Value
-        SaveConfig()
-        
-        if autoFarmEnabled then
-            if farmTask then
-                task.cancel(farmTask)
-            end
-            
-            FarmStatusLabel:Set("Status: Iniciando rotina...")
-            
-            farmTask = task.spawn(function()
-                -- Espera crucial inicial para dar tempo do mapa e do Boss spawnarem no Client
-                task.wait(4) 
-                
-                while autoFarmEnabled do
-                    local success, err = pcall(function()
-                        local boss = GetBossInWorkspace()
-                        local humanoid = boss and boss:FindFirstChildOfClass("Humanoid")
-                        
-                        if boss and humanoid and humanoid.Health > 0 then
-                            -- Boss encontrado e vivo
-                            FarmStatusLabel:Set("Status: Atacando " .. boss.Name .. " (" .. math.floor(humanoid.Health) .. " HP)")
-                            pcall(function()
-                                local dataRemote = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
-                                if dataRemote then
-                                    local args = { { { "General", "Attack", "Click", {}, n = 4 }, "\002" } }
-                                    dataRemote:FireServer(unpack(args))
-                                end
-                            end)
-                            task.wait(0.2) -- Otimizado: sem lag
-                        else
-                            -- Boss não encontrado ou morto
-                            if HubConfig.AutoHop then
-                                FarmStatusLabel:Set("Status: Boss ausente. Iniciando Server Hop...")
-                                ForceServerHop()
-                                task.wait(10) -- Aguarda o tempo de teleporte
-                            else
-                                FarmStatusLabel:Set("Status: Boss ausente. Aguardando spawn...")
-                                task.wait(1) -- Delay seguro
-                            end
-                        end
-                    end)
-                    
-                    if not success then
-                        warn("Erro no FarmLoop: ", tostring(err))
-                        task.wait(1)
-                    end
-                end
-            end)
-        else
-            if farmTask then
-                task.cancel(farmTask)
-                farmTask = nil
-            end
-        end
-    end,
+    Callback = HandleFarmToggle,
 })
 
 BossTab:CreateButton({
@@ -562,3 +566,14 @@ ConfigTab:CreateButton({
         Rayfield:Notify({Title="Aviso", Content="Re-execute o script para aplicar o reset completo.", Duration=4})
     end,
 })
+
+-- ==========================================
+-- AUTO-EXECUTION HANDLER (BugFix Rayfield)
+-- ==========================================
+-- Força a execução do farm caso o AutoFarm esteja ativado no load
+if HubConfig.AutoFarm then
+    task.spawn(function()
+        task.wait(1)
+        HandleFarmToggle(true)
+    end)
+end

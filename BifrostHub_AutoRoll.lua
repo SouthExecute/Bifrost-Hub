@@ -17,9 +17,9 @@ local connectionFailed
 connectionFailed = TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
     if player == Players.LocalPlayer then
         warn("Teleport Falhou! Tentando cancelar estado de Hop. Motivo: " .. tostring(errorMessage))
-        -- Libera o isHopping se estivesse preso para tentar outro servidor
+        -- Libera o isHopping se estivesse preso para tentar outro servidor, mas espera 10s para evitar spam
         task.spawn(function()
-            task.wait(2)
+            task.wait(10)
             if getfenv().isHopping ~= nil then
                 getfenv().isHopping = false
             end
@@ -431,9 +431,9 @@ local function ForceServerHop()
             local validServers = {}
             for _, server in ipairs(data.data) do
                 if type(server) == "table" and server.playing and server.maxPlayers then
-                    -- Adicionado filtro de "ping": ignora servidores injogáveis ou morrendo
+                    -- Filtra: não está cheio (com margem de 2 vagas para evitar fila), não é o atual, e tem pelo menos 2 players
                     local pingOk = (server.ping ~= nil and server.ping < 300) or true
-                    if server.playing >= 2 and server.playing < server.maxPlayers and server.id ~= game.JobId and pingOk then
+                    if server.playing >= 2 and server.playing <= server.maxPlayers - 2 and server.id ~= game.JobId and pingOk then
                         table.insert(validServers, server.id)
                     end
                 end
@@ -444,7 +444,11 @@ local function ForceServerHop()
                 pcall(function()
                     TeleportService:TeleportToPlaceInstance(placeId, randomServerId, Players.LocalPlayer)
                 end)
-                task.wait(15) -- Longo delay para suportar tempo de fila do Roblox
+                
+                -- Se o teleport foi acionado, não podemos destravar o isHopping rapidamente.
+                -- Se o jogador cair numa fila de "Server Full", ele pode ficar lá por minutos.
+                -- Tentar teleportar de novo com a fila aberta causa CRASH instantâneo.
+                task.wait(60) 
                 getfenv().isHopping = false
                 return
             end

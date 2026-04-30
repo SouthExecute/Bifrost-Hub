@@ -33,7 +33,8 @@ local AppState = {
     SelectedPetUUIDs = {},
     LastRollTick = 0,
     LastFarmTick = 0,
-    LastTokenTick = 0
+    LastTokenTick = 0,
+    StartupTick = tick() -- Tempo em que o script iniciou
 }
 
 local BossNameMapping = {
@@ -367,7 +368,9 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
     
     -- 2. Lógica de Auto-Farm & Server Hop (A cada 0.5s)
     if HubConfig.AutoFarm and not AppState.IsHopping then
-        if currentTick - AppState.LastFarmTick >= 0.5 then
+        if currentTick - AppState.StartupTick < 15 then
+            SafeSetUI(FarmStatusLabel, "FarmText", "Status: Aguardando carregamento do mapa (" .. math.floor(15 - (currentTick - AppState.StartupTick)) .. "s)")
+        elseif currentTick - AppState.LastFarmTick >= 0.5 then
             AppState.LastFarmTick = currentTick
             
             pcall(function()

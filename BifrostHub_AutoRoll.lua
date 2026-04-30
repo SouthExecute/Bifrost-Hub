@@ -4,36 +4,16 @@ local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
--- ==========================================
--- ANTI-CRASH TELEPORT HANDLER
--- ==========================================
--- Captura erros de teleporte (como Erro 279 ou servidor lotado) e impede que o Roblox feche abruptamente.
-local connectionFailed
-connectionFailed = TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
-    if player == Players.LocalPlayer then
-        warn("Teleport Falhou! Tentando cancelar estado de Hop. Motivo: " .. tostring(errorMessage))
-        -- Se o teleporte falhar, aguardamos bastante tempo para não criar conflito com o Client
-        task.spawn(function()
-            task.wait(20)
-            if getfenv().isHopping ~= nil then
-                getfenv().isHopping = false
-            end
-        end)
-    end
-end)
-
-repeat task.wait() until Players.LocalPlayer
-repeat task.wait() until Players.LocalPlayer.Character
-
 local Omni = require(ReplicatedStorage:WaitForChild("Omni"))
 
 -- ==========================================
--- SAVE SYSTEM (CONFIGURAÇÕES)
+-- STATE MACHINE & GLOBALS
 -- ==========================================
 local ConfigName = "BifrostHub_Config.json"
 local HubConfig = {
@@ -44,155 +24,221 @@ local HubConfig = {
     AutoFarm = false,
 }
 
+local AppState = {
+    IsHopping = false,
+    LastHopAttempt = 0,
+    FarmText = "",
+    TokenText = "",
+    AutoRollEnabled = false,
+    SelectedPetUUIDs = {},
+    LastRollTick = 0,
+    LastFarmTick = 0,
+    LastTokenTick = 0
+}
+
+local BossNameMapping = {
+    ["Yuje"] = "Yuji", 
+    ["Satoro"] = "Goujo", 
+    ["Sakana"] = "Meguna"
+}
+local Bosses = {"Yuje", "Satoro", "Sakana"}
+local OptionsToUUIDs = {}
+
+-- UI Elements
+local Window, MainTab, BossTab, ConfigTab
+local TokenLabel, FarmStatusLabel, PetDropdown, TargetDropdown
+
+-- ==========================================
+-- CORE FUNCTIONS
+-- ==========================================
 local function SaveConfig()
     if writefile then
-        local success, err = pcall(function()
-            writefile(ConfigName, HttpService:JSONEncode(HubConfig))
-        end)
-        if success then
-            Rayfield:Notify({Title="Config", Content="Configurações salvas com sucesso!", Duration=3})
-        else
-            Rayfield:Notify({Title="Erro", Content="Falha ao salvar: " .. tostring(err), Duration=3})
-        end
+        pcall(function() writefile(ConfigName, HttpService:JSONEncode(HubConfig)) end)
     end
 end
 
 local function LoadConfig()
     if readfile then
-        local success, data = pcall(function()
-            return HttpService:JSONDecode(readfile(ConfigName))
+        local s, d = pcall(function() return HttpService:JSONDecode(readfile(ConfigName)) end)
+        if s and type(d) == "table" then
+            for k, v in pairs(d) do HubConfig[k] = v end
+        end
+    end
+end
+
+local function SafeSetUI(label, stateKey, newText)
+    if AppState[stateKey] ~= newText then
+        AppState[stateKey] = newText
+        if label then pcall(function() label:Set(newText) end) end
+    end
+end
+
+-- Limpeza total de memória para evitar Crash do Executor no Hop
+local function TeardownAndHop(placeId, serverId)
+    AppState.LastHopAttempt = tick()
+    AppState.IsHopping = true
+    
+    -- Destrói a Interface Gráfica e libera a RAM ocupada por Tweens e Sinais da Rayfield
+    if Rayfield then
+        pcall(function() Rayfield:Destroy() end)
+    end
+    
+    -- Desconecta o loop principal (State Machine)
+    RunService:UnbindFromRenderStep("Bifrost_StateMachine")
+    
+    task.wait(1)
+    
+    pcall(function()
+        task.spawn(function()
+            TeleportService:TeleportToPlaceInstance(placeId, serverId, Players.LocalPlayer)
         end)
-        if success and type(data) == "table" then
-            for k, v in pairs(data) do
-                HubConfig[k] = v
+    end)
+    
+    task.wait(60)
+    AppState.IsHopping = false -- Apenas destrava se o TeleportService falhar silenciosamente
+end
+
+local function ForceServerHop()
+    if tick() - AppState.LastHopAttempt < 60 then return end
+    if AppState.IsHopping then return end
+    AppState.IsHopping = true
+    
+    SafeSetUI(FarmStatusLabel, "FarmText", "Status: Procurando novo servidor...")
+    
+    local placeId = game.PlaceId
+    local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100", placeId)
+    
+    local s, r = pcall(function() return game:HttpGet(url) end)
+    if s then
+        local ds, d = pcall(function() return HttpService:JSONDecode(r) end)
+        if ds and d and d.data then
+            local valid = {}
+            for _, server in ipairs(d.data) do
+                if type(server) == "table" and server.playing and server.maxPlayers then
+                    local pingOk = (server.ping ~= nil and server.ping < 300) or true
+                    if server.playing >= 1 and server.playing <= server.maxPlayers - 2 and server.id ~= game.JobId and pingOk then
+                        table.insert(valid, server.id)
+                    end
+                end
+            end
+            if #valid > 0 then
+                local randomServerId = valid[math.random(1, #valid)]
+                TeardownAndHop(placeId, randomServerId)
+                return
             end
         end
     end
-end
-
--- Carregar configs antes de criar a UI para preencher os valores padrão
-LoadConfig()
-
-local Window = Rayfield:CreateWindow({
-    Name = "Bifrost Hub | Modular Omni",
-    LoadingTitle = "Bifrost Hub",
-    LoadingSubtitle = "Auto-Roll & Boss Farm",
-    ConfigurationSaving = {
-        Enabled = false,
-    },
-    Discord = {
-        Enabled = false,
-    },
-    KeySystem = false,
-    ToggleUIKeybind = "L",
-})
-
-local MainTab = Window:CreateTab("Auto-Roll", 4483362458)
-local BossTab = Window:CreateTab("Global Farm", 4483362458)
-local ConfigTab = Window:CreateTab("Config", 4483362458)
-
--- ==========================================
--- AUTO-ROLL TAB
--- ==========================================
-local selectedPetUUIDs = {}
-local autoRollEnabled = false
-local autoRollTask = nil
-local OptionsToUUIDs = {}
-
-local function getPets()
-    local pets = {}
-    table.clear(OptionsToUUIDs)
     
-    local success, units = pcall(function() return Omni.Data.Inventory.Units end)
-    if not success or not units then return pets end
+    AppState.IsHopping = false
+    SafeSetUI(FarmStatusLabel, "FarmText", "Status: Nenhum servidor encontrado. Aguardando...")
+end
 
-    for uuid, pet in pairs(units) do
-        local displayName = pet.CustomName or pet.Name or "Unknown"
-        
-        local pVal, dVal, cVal = 0, 0, 0
-        if pet.RenameBuffs then
-            pVal = pet.RenameBuffs["Power"] or 0
-            dVal = pet.RenameBuffs["Damage"] or 0
-            cVal = pet.RenameBuffs["Crystals"] or 0
+local function GetBossInWorkspace()
+    local key = HubConfig.SelectedBoss
+    local map = BossNameMapping[key] or key
+    
+    local roots = { Workspace, Workspace:FindFirstChild("Mobs"), Workspace:FindFirstChild("Entities"), Workspace:FindFirstChild("Bosses"), Workspace:FindFirstChild("LiveBosses") }
+    
+    for _, root in ipairs(roots) do
+        if root then
+            for _, obj in ipairs(root:GetChildren()) do
+                if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.MaxHealth > 100 then
+                    if not Players:GetPlayerFromCharacter(obj) and obj.Humanoid.Health > 0 then
+                        local oName = string.lower(obj.Name)
+                        if string.find(oName, string.lower(map)) or string.find(oName, string.lower(key)) then
+                            return obj
+                        end
+                    end
+                end
+            end
         end
-        
-        local optionName = string.format("%s - %s - (P=%.2f D=%.2f C=%.2f)", displayName, string.sub(uuid, 1, 6), pVal, dVal, cVal)
-        table.insert(pets, optionName)
-        OptionsToUUIDs[optionName] = uuid
     end
-    return pets
+    return nil
 end
 
-local function generateRandomName()
-    local length = math.random(5, 15)
-    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    local name = ""
-    for i = 1, length do
-        local r = math.random(1, #chars)
-        name = name .. string.sub(chars, r, r)
-    end
-    return name
-end
-
-local TokenLabel = MainTab:CreateLabel("Rename Tokens: Procurando...")
-task.spawn(function()
-    local lastTokenText = ""
-    while task.wait(1.5) do
-        local tokens = 0
-        local found = false
-        
-        local success, err = pcall(function()
-            local items = Omni.Data.Inventory.Items
-            if items then
-                for k, v in pairs(items) do
+local function GetTokens()
+    local tokens = 0
+    local found = false
+    pcall(function()
+        local items = Omni.Data.Inventory.Items
+        if items then
+            for k, v in pairs(items) do
+                if type(k) == "string" and string.find(string.lower(k), "rename token") then
+                    found = true
+                    tokens = tokens + (type(v) == "table" and (v.Amount or v.Count or v.Quantity or 1) or (type(v) == "number" and v or 1))
+                end
+            end
+        end
+        if not found then
+            local consumables = Omni.Data.Inventory.Consumables
+            if consumables then
+                for k, v in pairs(consumables) do
                     if type(k) == "string" and string.find(string.lower(k), "rename token") then
                         found = true
                         tokens = tokens + (type(v) == "table" and (v.Amount or v.Count or v.Quantity or 1) or (type(v) == "number" and v or 1))
                     end
                 end
             end
-            
-            if not found then
-                local consumables = Omni.Data.Inventory.Consumables
-                if consumables then
-                    for k, v in pairs(consumables) do
-                        if type(k) == "string" and string.find(string.lower(k), "rename token") then
-                            found = true
-                            tokens = tokens + (type(v) == "table" and (v.Amount or v.Count or v.Quantity or 1) or (type(v) == "number" and v or 1))
-                        end
-                    end
-                end
-            end
-        end)
-        
-        local newText = ""
-        if success and found then
-            newText = "Rename Tokens: " .. tostring(tokens)
-        else
-            newText = "Rename Tokens: ??? (Não encontrado automaticamente)"
         end
-        
-        if newText ~= lastTokenText then
-            TokenLabel:Set(newText)
-            lastTokenText = newText
-        end
-    end
-end)
+    end)
+    return found, tokens
+end
 
-local PetDropdown = MainTab:CreateDropdown({
+local function getPets()
+    local pets = {}
+    table.clear(OptionsToUUIDs)
+    local s, units = pcall(function() return Omni.Data.Inventory.Units end)
+    if not s or not units then return pets end
+    for uuid, pet in pairs(units) do
+        local dName = pet.CustomName or pet.Name or "Unknown"
+        local p, d, c = 0, 0, 0
+        if pet.RenameBuffs then p = pet.RenameBuffs["Power"] or 0 d = pet.RenameBuffs["Damage"] or 0 c = pet.RenameBuffs["Crystals"] or 0 end
+        local opt = string.format("%s - %s - (P=%.2f D=%.2f C=%.2f)", dName, string.sub(uuid, 1, 6), p, d, c)
+        table.insert(pets, opt)
+        OptionsToUUIDs[opt] = uuid
+    end
+    return pets
+end
+
+local function generateRandomName()
+    local len = math.random(5, 15)
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local name = ""
+    for i=1,len do local r = math.random(1, #chars) name = name .. string.sub(chars, r, r) end
+    return name
+end
+
+-- ==========================================
+-- UI INITIALIZATION
+-- ==========================================
+LoadConfig()
+Window = Rayfield:CreateWindow({
+    Name = "Bifrost Hub | Modular Omni",
+    LoadingTitle = "Bifrost Hub",
+    LoadingSubtitle = "Auto-Roll & Boss Farm",
+    ConfigurationSaving = { Enabled = false },
+    KeySystem = false,
+    ToggleUIKeybind = "L"
+})
+
+MainTab = Window:CreateTab("Auto-Roll", 4483362458)
+BossTab = Window:CreateTab("Global Farm", 4483362458)
+ConfigTab = Window:CreateTab("Config", 4483362458)
+
+TokenLabel = MainTab:CreateLabel("Rename Tokens: Procurando...")
+
+PetDropdown = MainTab:CreateDropdown({
     Name = "Select Pets",
     Options = getPets(),
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "PetDropdown",
     Callback = function(Option)
-        selectedPetUUIDs = {}
+        AppState.SelectedPetUUIDs = {}
         if type(Option) == "table" then
             for _, optStr in ipairs(Option) do
                 local uuid = OptionsToUUIDs[optStr]
-                if uuid then
-                    table.insert(selectedPetUUIDs, uuid)
-                end
+                if uuid then table.insert(AppState.SelectedPetUUIDs, uuid) end
             end
         end
     end,
@@ -202,26 +248,17 @@ MainTab:CreateButton({
     Name = "Refresh Pets",
     Callback = function()
         PetDropdown:Refresh(getPets(), true)
-        selectedPetUUIDs = {}
-        Rayfield:Notify({Title = "Refreshed", Content = "Pet list has been updated.", Duration = 2})
+        AppState.SelectedPetUUIDs = {}
+        Rayfield:Notify({Title = "Refreshed", Content = "Pet list updated.", Duration = 2})
     end,
 })
 
 local function generateOptions(min, max)
     local opts = {}
-    for i = math.floor(min * 100), math.floor(max * 100) do
-        table.insert(opts, string.format("%.2f", i / 100))
-    end
+    for i = math.floor(min*100), math.floor(max*100) do table.insert(opts, string.format("%.2f", i/100)) end
     return opts
 end
-
-local buffOptions = {
-    Power = generateOptions(1.00, 1.75),
-    Damage = generateOptions(0.10, 0.75),
-    Crystals = generateOptions(0.10, 0.75)
-}
-
-local TargetDropdown
+local buffOptions = { Power = generateOptions(1.00, 1.75), Damage = generateOptions(0.10, 0.75), Crystals = generateOptions(0.10, 0.75) }
 
 MainTab:CreateDropdown({
     Name = "Select Buff",
@@ -234,36 +271,22 @@ MainTab:CreateDropdown({
             HubConfig.SelectedBuff = Option[1]
             if TargetDropdown then
                 TargetDropdown:Refresh(buffOptions[HubConfig.SelectedBuff])
-                
                 local defaultVal = string.format("%.2f", HubConfig.TargetValue)
-                local found = false
-                for _, v in ipairs(buffOptions[HubConfig.SelectedBuff]) do
-                    if v == defaultVal then found = true break end
-                end
-                
-                if not found then defaultVal = buffOptions[HubConfig.SelectedBuff][1] end
-                
                 TargetDropdown:Set({defaultVal})
-                HubConfig.TargetValue = tonumber(defaultVal)
             end
             SaveConfig()
         end
     end,
 })
 
-local initialTarget = string.format("%.2f", HubConfig.TargetValue)
-
 TargetDropdown = MainTab:CreateDropdown({
     Name = "Target Buff Value (Minimum)",
     Options = buffOptions[HubConfig.SelectedBuff] or buffOptions["Power"],
-    CurrentOption = initialTarget,
+    CurrentOption = string.format("%.2f", HubConfig.TargetValue),
     MultipleOptions = false,
     Flag = "TargetDropdown",
     Callback = function(Option)
-        if Option and Option[1] then
-            HubConfig.TargetValue = tonumber(Option[1])
-            SaveConfig()
-        end
+        if Option and Option[1] then HubConfig.TargetValue = tonumber(Option[1]); SaveConfig() end
     end,
 })
 
@@ -273,210 +296,14 @@ AutoRollToggle = MainTab:CreateToggle({
     CurrentValue = false,
     Flag = "AutoRollToggle",
     Callback = function(Value)
-        autoRollEnabled = Value
-        if autoRollEnabled then
-            if #selectedPetUUIDs == 0 then
-                Rayfield:Notify({Title="Erro", Content="Nenhum pet selecionado!", Duration=3})
-                AutoRollToggle:Set(false)
-                return
-            end
-            
-            local activeRolls = {}
-            for _, uuid in ipairs(selectedPetUUIDs) do
-                table.insert(activeRolls, uuid)
-            end
-            
-            autoRollTask = task.spawn(function()
-                while autoRollEnabled do
-                    if #activeRolls == 0 then
-                        Rayfield:Notify({Title="Concluído", Content="Todos os pets selecionados atingiram a meta!", Duration=5})
-                        AutoRollToggle:Set(false)
-                        autoRollEnabled = false
-                        if PetDropdown then
-                            PetDropdown:Refresh(getPets(), true)
-                            selectedPetUUIDs = {}
-                        end
-                        break
-                    end
-                    
-                    for i = #activeRolls, 1, -1 do
-                        if not autoRollEnabled then break end
-                        
-                        local uuid = activeRolls[i]
-                        local didRoll = false
-                        
-                        local success, err = pcall(function()
-                            local petData = Omni.Data.Inventory.Units[uuid]
-                            if not petData then
-                                table.remove(activeRolls, i)
-                                return
-                            end
-                            
-                            local currentBuffValue = 0
-                            if petData.RenameBuffs and petData.RenameBuffs[HubConfig.SelectedBuff] then
-                                currentBuffValue = petData.RenameBuffs[HubConfig.SelectedBuff]
-                            end
-                            
-                            if currentBuffValue >= HubConfig.TargetValue - 0.001 then
-                                local petName = petData.CustomName or petData.Name or "Unknown"
-                                Rayfield:Notify({
-                                    Title = "Sucesso! 🎉",
-                                    Content = string.format("%s alcançou %.2f de %s!", petName, currentBuffValue, HubConfig.SelectedBuff),
-                                    Duration = 6,
-                                })
-                                table.remove(activeRolls, i)
-                                return
-                            end
-                            
-                            local newName = generateRandomName()
-                            Omni.Signal:Fire("General", "Units", "Rename", uuid, newName)
-                            didRoll = true
-                        end)
-                        
-                        if not success then
-                            warn("Auto-roll error: " .. tostring(err))
-                        end
-                        
-                        if didRoll then
-                            task.wait(0.8) -- Segurança: delay para evitar spam/kick
-                        end
-                    end
-                    task.wait(0.1)
-                end
-            end)
-        else
-            if autoRollTask then
-                task.cancel(autoRollTask)
-                autoRollTask = nil
-                if PetDropdown then
-                    PetDropdown:Refresh(getPets(), true)
-                    selectedPetUUIDs = {}
-                end
-            end
+        if Value and #AppState.SelectedPetUUIDs == 0 then
+            Rayfield:Notify({Title="Erro", Content="Selecione pets primeiro!", Duration=3})
+            AutoRollToggle:Set(false)
+            return
         end
+        AppState.AutoRollEnabled = Value
     end,
 })
-
--- ==========================================
--- GLOBAL FARM TAB (BOSSES + SERVER HOP)
--- ==========================================
-
-local autoFarmEnabled = false
-local farmTask = nil
-
-local Bosses = {"Yuje", "Satoro", "Sakana"}
--- Mapeamento com os nomes exatos extraídos do Dex e da Screenshot (Meguna, Goujo)
-local BossNameMapping = {
-    ["Yuje"] = "Yuji", 
-    ["Satoro"] = "Goujo", 
-    ["Sakana"] = "Meguna"
-}
-
-local cachedBoss = nil
-
-local function GetBossInWorkspace()
-    local bossKey = HubConfig.SelectedBoss
-    local mappedName = BossNameMapping[bossKey] or bossKey
-    
-    -- Retorna o boss em cache se ele ainda existir, estiver vivo e bater com o nome atual
-    if cachedBoss and cachedBoss.Parent and cachedBoss:FindFirstChild("Humanoid") and cachedBoss.Humanoid.Health > 0 then
-        local cName = string.lower(cachedBoss.Name)
-        if string.find(cName, string.lower(mappedName)) or string.find(cName, string.lower(bossKey)) then
-            return cachedBoss
-        end
-    end
-    
-    local possibleFolders = {
-        Workspace, 
-        Workspace:FindFirstChild("Mobs"), 
-        Workspace:FindFirstChild("Entities"), 
-        Workspace:FindFirstChild("Bosses"),
-        Workspace:FindFirstChild("LiveBosses")
-    }
-    
-    -- Busca otimizada com GetChildren nas pastas raízes (Evita Crash de Executor por excesso de peças)
-    for _, folder in ipairs(possibleFolders) do
-        if folder then
-            for _, obj in ipairs(folder:GetChildren()) do
-                if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.MaxHealth > 100 then
-                    -- Ignora jogadores
-                    if not Players:GetPlayerFromCharacter(obj) then
-                        local objName = string.lower(obj.Name)
-                        if string.find(objName, string.lower(mappedName)) or string.find(objName, string.lower(bossKey)) then
-                            cachedBoss = obj
-                            return obj
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return nil
-end
-
-getfenv().isHopping = false
-local LastHopAttempt = 0
-
-local function ForceServerHop()
-    -- Hard Cooldown de 60 segundos absoluto entre tentativas de hop
-    -- Isso garante 100% que o executor nunca vai spammar Teleport e crashar o jogo, mesmo se houver falhas.
-    if tick() - LastHopAttempt < 60 then return end
-    
-    if getfenv().isHopping then return end
-    getfenv().isHopping = true
-    
-    Rayfield:Notify({Title="Server Hop", Content="Procurando novo servidor público...", Duration=5})
-    
-    local placeId = game.PlaceId
-    local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100", placeId)
-    
-    local success, result = pcall(function()
-        return game:HttpGet(url)
-    end)
-    
-    if success then
-        local decodeSuccess, data = pcall(function()
-            return HttpService:JSONDecode(result)
-        end)
-        
-        if decodeSuccess and data and data.data then
-            local validServers = {}
-            for _, server in ipairs(data.data) do
-                if type(server) == "table" and server.playing and server.maxPlayers then
-                    -- Filtra: Evita servidores 100% vazios e garante no mínimo 2 vagas
-                    local pingOk = (server.ping ~= nil and server.ping < 300) or true
-                    if server.playing >= 1 and server.playing <= server.maxPlayers - 2 and server.id ~= game.JobId and pingOk then
-                        table.insert(validServers, server.id)
-                    end
-                end
-            end
-            
-            if #validServers > 0 then
-                local randomServerId = validServers[math.random(1, #validServers)]
-                
-                -- O hard cooldown só ativa se e somente se formos de fato enviar um comando de Teleport pro motor.
-                LastHopAttempt = tick()
-                
-                pcall(function()
-                    task.spawn(function()
-                        TeleportService:TeleportToPlaceInstance(placeId, randomServerId, Players.LocalPlayer)
-                    end)
-                end)
-                
-                -- Se o teleport foi acionado, não podemos destravar o isHopping rapidamente.
-                -- Se o jogador cair numa fila de "Server Full", ele pode ficar lá por minutos.
-                -- Tentar teleportar de novo com a fila aberta causa CRASH instantâneo.
-                task.wait(60) 
-                getfenv().isHopping = false
-                return
-            end
-        end
-    end
-    
-    getfenv().isHopping = false
-    Rayfield:Notify({Title="Server Hop", Content="Nenhum servidor adequado encontrado.", Duration=3})
-end
 
 BossTab:CreateDropdown({
     Name = "Select Global Boss",
@@ -485,150 +312,133 @@ BossTab:CreateDropdown({
     MultipleOptions = false,
     Flag = "BossDropdown",
     Callback = function(Option)
-        if Option and Option[1] then
-            HubConfig.SelectedBoss = Option[1]
-            SaveConfig()
-        end
+        if Option and Option[1] then HubConfig.SelectedBoss = Option[1]; SaveConfig() end
     end,
 })
 
 BossTab:CreateToggle({
-    Name = "Auto Server-Hop (If Boss Dead/Not Found)",
+    Name = "Auto Server-Hop (If Boss Dead)",
     CurrentValue = HubConfig.AutoHop,
     Flag = "AutoHopToggle",
-    Callback = function(Value)
-        HubConfig.AutoHop = Value
-        SaveConfig()
-    end,
+    Callback = function(Value) HubConfig.AutoHop = Value; SaveConfig() end,
 })
 
-local FarmStatusLabel = BossTab:CreateLabel("Status: Aguardando...")
+FarmStatusLabel = BossTab:CreateLabel("Status: Aguardando...")
 
-local FarmBossToggle
-
-local function HandleFarmToggle(Value)
-    autoFarmEnabled = Value
-    HubConfig.AutoFarm = Value
-    SaveConfig()
-    
-    if autoFarmEnabled then
-        if farmTask then
-            task.cancel(farmTask)
-        end
-        
-        FarmStatusLabel:Set("Status: Iniciando rotina...")
-        
-        farmTask = task.spawn(function()
-            -- Delay de segurança inicial para garantir que o cliente carregue o mapa e as instâncias antes do loop
-            task.wait(15)
-            
-            local lastFarmText = ""
-            local function SafeSetStatus(text)
-                if text ~= lastFarmText then
-                    pcall(function() FarmStatusLabel:Set(text) end)
-                    lastFarmText = text
-                end
-            end
-            
-            while autoFarmEnabled do
-                local success, err = pcall(function()
-                    local boss = GetBossInWorkspace()
-                    local humanoid = boss and boss:FindFirstChildOfClass("Humanoid")
-                    
-                    if boss and humanoid and humanoid.Health > 0 then
-                        -- Boss encontrado e vivo
-                        SafeSetStatus("Status: Atacando " .. boss.Name .. " (" .. math.floor(humanoid.Health) .. " HP)")
-                        pcall(function()
-                            local dataRemote = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
-                            if dataRemote then
-                                local args = { { { "General", "Attack", "Click", {}, n = 4 }, "\002" } }
-                                dataRemote:FireServer(unpack(args))
-                            end
-                        end)
-                        task.wait(0.5) -- Otimizado: reduzido envio de pacotes para aliviar a memória (Madium)
-                    else
-                        -- Boss não encontrado ou morto
-                        task.wait(5) -- Delay crucial para o Roblox limpar a memória do server antigo antes de pular
-                        
-                        if HubConfig.AutoHop then
-                            SafeSetStatus("Status: Boss ausente. Iniciando Server Hop...")
-                            ForceServerHop()
-                            task.wait(10) -- Aguarda o tempo de teleporte
-                        else
-                            SafeSetStatus("Status: Boss ausente. Aguardando spawn...")
-                            task.wait(1) -- Delay seguro
-                        end
-                    end
-                end)
-                
-                if not success then
-                    warn("Erro no FarmLoop: ", tostring(err))
-                    task.wait(1)
-                end
-            end
-        end)
-    else
-        if farmTask then
-            task.cancel(farmTask)
-            farmTask = nil
-        end
-        FarmStatusLabel:Set("Status: Farm Parado.")
-    end
-end
-
-FarmBossToggle = BossTab:CreateToggle({
+BossTab:CreateToggle({
     Name = "Auto-Farm Boss",
     CurrentValue = HubConfig.AutoFarm,
     Flag = "FarmBossToggle",
-    Callback = HandleFarmToggle,
+    Callback = function(Value) HubConfig.AutoFarm = Value; SaveConfig() end,
 })
 
 BossTab:CreateButton({
     Name = "Force Server Hop",
-    Callback = function()
-        ForceServerHop()
-    end,
+    Callback = function() ForceServerHop() end,
 })
 
--- ==========================================
--- CONFIG TAB
--- ==========================================
-
-ConfigTab:CreateButton({
-    Name = "Save Settings",
-    Callback = function()
-        SaveConfig()
-    end,
-})
-
+ConfigTab:CreateButton({ Name = "Save Settings", Callback = function() SaveConfig() end })
 ConfigTab:CreateButton({
     Name = "Reset Settings",
     Callback = function()
-        HubConfig = {
-            SelectedBuff = "Power",
-            TargetValue = 1.00,
-            SelectedBoss = "Yuje",
-            AutoHop = false,
-            AutoFarm = false,
-        }
+        HubConfig = { SelectedBuff = "Power", TargetValue = 1.00, SelectedBoss = "Yuje", AutoHop = false, AutoFarm = false }
         SaveConfig()
-        Rayfield:Notify({Title="Config", Content="Configurações resetadas com sucesso!", Duration=3})
-        Rayfield:Notify({Title="Aviso", Content="Re-execute o script para aplicar o reset completo.", Duration=4})
+        Rayfield:Notify({Title="Config", Content="Configurações resetadas!", Duration=3})
     end,
 })
 
 -- ==========================================
--- AUTO-EXECUTION HANDLER (BugFix Rayfield)
+-- STATE MACHINE (HEARTBEAT LOOP)
 -- ==========================================
--- Força a execução do farm caso o AutoFarm esteja ativado no load
-if HubConfig.AutoFarm then
-    task.spawn(function()
-        -- Aguardar firmemente a UI do jogo terminar de carregar (previne o Crash do "Menu Principal")
-        local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui", 30)
-        task.wait(2) -- Tempo extra de carência para os scripts do jogo iniciarem
-        
-        if HubConfig.AutoFarm then
-            HandleFarmToggle(true)
+-- Uma única thread gerencia tudo. Sem vazamento de memória.
+RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.Value, function()
+    local currentTick = tick()
+    
+    -- 1. Atualizador de UI de Tokens (A cada 1.5s)
+    if currentTick - AppState.LastTokenTick >= 1.5 then
+        AppState.LastTokenTick = currentTick
+        local found, tokens = GetTokens()
+        if found then
+            SafeSetUI(TokenLabel, "TokenText", "Rename Tokens: " .. tostring(tokens))
+        else
+            SafeSetUI(TokenLabel, "TokenText", "Rename Tokens: ???")
         end
-    end)
-end
+    end
+    
+    -- 2. Lógica de Auto-Farm & Server Hop (A cada 0.5s)
+    if HubConfig.AutoFarm and not AppState.IsHopping then
+        if currentTick - AppState.LastFarmTick >= 0.5 then
+            AppState.LastFarmTick = currentTick
+            
+            pcall(function()
+                local boss = GetBossInWorkspace()
+                if boss then
+                    SafeSetUI(FarmStatusLabel, "FarmText", "Status: Atacando " .. boss.Name .. " (" .. math.floor(boss.Humanoid.Health) .. " HP)")
+                    local dataRemote = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
+                    if dataRemote then
+                        dataRemote:FireServer(unpack({ { { "General", "Attack", "Click", {}, n = 4 }, "\002" } }))
+                    end
+                else
+                    if HubConfig.AutoHop then
+                        -- Apenas tenta o Hop se passou o delay seguro pra não encavalar requests
+                        if tick() - AppState.LastHopAttempt > 5 then
+                            ForceServerHop()
+                        end
+                    else
+                        SafeSetUI(FarmStatusLabel, "FarmText", "Status: Boss ausente. Aguardando spawn...")
+                    end
+                end
+            end)
+        end
+    elseif not HubConfig.AutoFarm and AppState.FarmText ~= "Status: Parado" and not AppState.IsHopping then
+        SafeSetUI(FarmStatusLabel, "FarmText", "Status: Parado")
+    end
+    
+    -- 3. Lógica de Auto-Roll (A cada 0.8s)
+    if AppState.AutoRollEnabled and #AppState.SelectedPetUUIDs > 0 then
+        if currentTick - AppState.LastRollTick >= 0.8 then
+            AppState.LastRollTick = currentTick
+            pcall(function()
+                -- Encontra o primeiro pet que ainda precisa rolar
+                local targetUuid = nil
+                local targetIndex = nil
+                
+                for i, uuid in ipairs(AppState.SelectedPetUUIDs) do
+                    local petData = Omni.Data.Inventory.Units[uuid]
+                    if petData then
+                        local currentBuffValue = 0
+                        if petData.RenameBuffs and petData.RenameBuffs[HubConfig.SelectedBuff] then
+                            currentBuffValue = petData.RenameBuffs[HubConfig.SelectedBuff]
+                        end
+                        if currentBuffValue < HubConfig.TargetValue - 0.001 then
+                            targetUuid = uuid
+                            targetIndex = i
+                            break
+                        else
+                            Rayfield:Notify({Title = "Sucesso!", Content = petData.Name .. " atingiu a meta!", Duration = 5})
+                            table.remove(AppState.SelectedPetUUIDs, i)
+                            return -- Dá break no loop e pula pro próximo tick
+                        end
+                    else
+                        table.remove(AppState.SelectedPetUUIDs, i)
+                    end
+                end
+                
+                if targetUuid then
+                    local newName = generateRandomName()
+                    Omni.Signal:Fire("General", "Units", "Rename", targetUuid, newName)
+                end
+            end)
+        end
+    end
+end)
+
+-- Handle Teleport Failure
+TeleportService.TeleportInitFailed:Connect(function(player)
+    if player == Players.LocalPlayer then
+        task.spawn(function()
+            task.wait(10)
+            AppState.IsHopping = false
+        end)
+    end
+end)

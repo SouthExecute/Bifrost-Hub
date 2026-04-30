@@ -409,7 +409,8 @@ local function ForceServerHop()
     Rayfield:Notify({Title="Server Hop", Content="Procurando novo servidor público...", Duration=5})
     
     local placeId = game.PlaceId
-    local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100", placeId)
+    -- Mudando sortOrder para Desc para pegar servidores ativos em vez de servidores vazios (ghost servers)
+    local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100", placeId)
     
     local success, result = pcall(function()
         return game:HttpGet(url)
@@ -418,18 +419,25 @@ local function ForceServerHop()
     if success then
         local data = HttpService:JSONDecode(result)
         if data and data.data then
+            local validServers = {}
             for _, server in ipairs(data.data) do
                 if type(server) == "table" and server.playing and server.maxPlayers then
-                    -- Busca servidor com menor número de jogadores e que não seja o atual
-                    if server.playing > 0 and server.playing < server.maxPlayers and server.id ~= game.JobId then
-                        pcall(function()
-                            TeleportService:TeleportToPlaceInstance(placeId, server.id, Players.LocalPlayer)
-                        end)
-                        task.wait(5)
-                        isHopping = false
-                        return
+                    -- Filtra: não está cheio, não é o atual, e tem pelo menos 2 players (evita ghost servers quebrados)
+                    if server.playing >= 2 and server.playing < server.maxPlayers and server.id ~= game.JobId then
+                        table.insert(validServers, server.id)
                     end
                 end
+            end
+            
+            if #validServers > 0 then
+                -- Escolhe um servidor aleatório da lista para evitar focar sempre no mesmo servidor bugado
+                local randomServerId = validServers[math.random(1, #validServers)]
+                pcall(function()
+                    TeleportService:TeleportToPlaceInstance(placeId, randomServerId, Players.LocalPlayer)
+                end)
+                task.wait(10) -- Mais tempo para o Teleport carregar sem bugar
+                isHopping = false
+                return
             end
         end
     end

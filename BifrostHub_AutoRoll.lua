@@ -418,7 +418,6 @@ local function ForceServerHop()
     
     if getfenv().isHopping then return end
     getfenv().isHopping = true
-    LastHopAttempt = tick()
     
     Rayfield:Notify({Title="Server Hop", Content="Procurando novo servidor público...", Duration=5})
     
@@ -438,9 +437,9 @@ local function ForceServerHop()
             local validServers = {}
             for _, server in ipairs(data.data) do
                 if type(server) == "table" and server.playing and server.maxPlayers then
-                    -- Filtra: Evita "Ghost Servers" (menos de 5 players) e evita Servidores Lotados por causa de Cache de API (margem de 5 vagas)
+                    -- Filtra: Evita servidores 100% vazios e garante no mínimo 2 vagas
                     local pingOk = (server.ping ~= nil and server.ping < 300) or true
-                    if server.playing >= 5 and server.playing <= server.maxPlayers - 5 and server.id ~= game.JobId and pingOk then
+                    if server.playing >= 1 and server.playing <= server.maxPlayers - 2 and server.id ~= game.JobId and pingOk then
                         table.insert(validServers, server.id)
                     end
                 end
@@ -448,6 +447,10 @@ local function ForceServerHop()
             
             if #validServers > 0 then
                 local randomServerId = validServers[math.random(1, #validServers)]
+                
+                -- O hard cooldown só ativa se e somente se formos de fato enviar um comando de Teleport pro motor.
+                LastHopAttempt = tick()
+                
                 pcall(function()
                     TeleportService:TeleportToPlaceInstance(placeId, randomServerId, Players.LocalPlayer)
                 end)

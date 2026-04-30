@@ -358,9 +358,12 @@ local function GetBossInWorkspace()
     local bossKey = HubConfig.SelectedBoss
     local mappedName = BossNameMapping[bossKey] or bossKey
     
-    -- Retorna o boss em cache se ele ainda existir e estiver vivo
+    -- Retorna o boss em cache se ele ainda existir, estiver vivo e bater com o nome atual
     if cachedBoss and cachedBoss.Parent and cachedBoss:FindFirstChild("Humanoid") and cachedBoss.Humanoid.Health > 0 then
-        return cachedBoss
+        local cName = string.lower(cachedBoss.Name)
+        if string.find(cName, string.lower(mappedName)) or string.find(cName, string.lower(bossKey)) then
+            return cachedBoss
+        end
     end
     
     local possibleFolders = {
@@ -374,7 +377,7 @@ local function GetBossInWorkspace()
     for _, folder in ipairs(possibleFolders) do
         if folder then
             local b = folder:FindFirstChild(mappedName) or folder:FindFirstChild(bossKey)
-            if b and b:FindFirstChild("Humanoid") then
+            if b and b:FindFirstChild("Humanoid") and b.Humanoid.MaxHealth > 100 then
                 cachedBoss = b
                 return b
             end
@@ -383,7 +386,7 @@ local function GetBossInWorkspace()
     
     -- Busca profunda caso a busca rápida falhe (procurando parte do nome)
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.MaxHealth > 100 then
             -- Ignora jogadores
             if not Players:GetPlayerFromCharacter(obj) then
                 local objName = string.lower(obj.Name)
@@ -459,6 +462,8 @@ BossTab:CreateToggle({
     end,
 })
 
+local FarmStatusLabel = BossTab:CreateLabel("Status: Aguardando...")
+
 local FarmBossToggle
 FarmBossToggle = BossTab:CreateToggle({
     Name = "Auto-Farm Boss",
@@ -468,7 +473,14 @@ FarmBossToggle = BossTab:CreateToggle({
         autoFarmEnabled = Value
         HubConfig.AutoFarm = Value
         SaveConfig()
+        
         if autoFarmEnabled then
+            if farmTask then
+                task.cancel(farmTask)
+            end
+            
+            FarmStatusLabel:Set("Status: Iniciando rotina...")
+            
             farmTask = task.spawn(function()
                 -- Espera crucial inicial para dar tempo do mapa e do Boss spawnarem no Client
                 task.wait(4) 
@@ -480,6 +492,7 @@ FarmBossToggle = BossTab:CreateToggle({
                         
                         if boss and humanoid and humanoid.Health > 0 then
                             -- Boss encontrado e vivo
+                            FarmStatusLabel:Set("Status: Atacando " .. boss.Name .. " (" .. math.floor(humanoid.Health) .. " HP)")
                             pcall(function()
                                 local dataRemote = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
                                 if dataRemote then
@@ -491,9 +504,11 @@ FarmBossToggle = BossTab:CreateToggle({
                         else
                             -- Boss não encontrado ou morto
                             if HubConfig.AutoHop then
+                                FarmStatusLabel:Set("Status: Boss ausente. Iniciando Server Hop...")
                                 ForceServerHop()
                                 task.wait(10) -- Aguarda o tempo de teleporte
                             else
+                                FarmStatusLabel:Set("Status: Boss ausente. Aguardando spawn...")
                                 task.wait(1) -- Delay seguro
                             end
                         end

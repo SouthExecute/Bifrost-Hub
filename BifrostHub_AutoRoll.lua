@@ -61,6 +61,16 @@ end
 -- ==========================================
 -- CUSTOM VANILLA UI ENGINE (ANTI-LEAK)
 -- ==========================================
+-- Limpeza de UI anterior (se re-executado)
+pcall(function()
+    if CoreGui:FindFirstChild("BifrostLiteUI") then
+        CoreGui.BifrostLiteUI:Destroy()
+    end
+    if Players.LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("BifrostLiteUI") then
+        Players.LocalPlayer.PlayerGui.BifrostLiteUI:Destroy()
+    end
+end)
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BifrostLiteUI"
 ScreenGui.ResetOnSpawn = false
@@ -345,15 +355,16 @@ local function TeardownAndHop(placeId, serverId)
     AppState.LastHopAttempt = tick()
     AppState.IsHopping = true
     
-    -- Autodestruição limpa de interface
-    if ScreenGui then pcall(function() ScreenGui:Destroy() end) end
-    RunService:UnbindFromRenderStep("Bifrost_StateMachine")
+    -- Esconde a UI em vez de destruir, permitindo recuperação se falhar
+    if ScreenGui then pcall(function() ScreenGui.Enabled = false end) end
     
     task.wait(1)
     pcall(function() task.spawn(function() TeleportService:TeleportToPlaceInstance(placeId, serverId, Players.LocalPlayer) end) end)
     
     task.wait(60)
+    -- Se chegou aqui e não teleportou, o TeleportService falhou silenciosamente
     AppState.IsHopping = false
+    if ScreenGui then pcall(function() ScreenGui.Enabled = true end) end
 end
 
 local function ForceServerHop()
@@ -505,6 +516,12 @@ end)
 
 TeleportService.TeleportInitFailed:Connect(function(player)
     if player == Players.LocalPlayer then
-        task.spawn(function() task.wait(10); AppState.IsHopping = false end)
+        task.spawn(function() 
+            task.wait(5) 
+            AppState.IsHopping = false 
+            AppState.LastHopAttempt = 0 -- Zera o cooldown para tentar um novo servidor imediatamente
+            if ScreenGui then pcall(function() ScreenGui.Enabled = true end) end
+            SafeSetUI(FarmStatusLabel, "FarmText", "Status: Falha no Hop. Tentando de novo...")
+        end)
     end
 end)

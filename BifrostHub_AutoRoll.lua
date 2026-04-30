@@ -368,8 +368,11 @@ local function TeardownAndHop(placeId, serverId)
 end
 
 local function ForceServerHop()
-    if tick() - AppState.LastHopAttempt < 60 then return end
+    -- Cooldown seguro de 20s para evitar IP Ban/Rate Limit (Erro 429) da API do Roblox
+    if tick() - AppState.LastHopAttempt < 20 then return end
     if AppState.IsHopping then return end
+    
+    AppState.LastHopAttempt = tick()
     AppState.IsHopping = true
     
     SafeSetUI(FarmStatusLabel, "FarmText", "Status: Procurando novo servidor...")

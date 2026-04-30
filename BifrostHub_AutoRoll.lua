@@ -411,8 +411,11 @@ local function ForceServerHop()
     end)
     
     if success then
-        local data = HttpService:JSONDecode(result)
-        if data and data.data then
+        local decodeSuccess, data = pcall(function()
+            return HttpService:JSONDecode(result)
+        end)
+        
+        if decodeSuccess and data and data.data then
             local validServers = {}
             for _, server in ipairs(data.data) do
                 if type(server) == "table" and server.playing and server.maxPlayers then
@@ -481,8 +484,9 @@ local function HandleFarmToggle(Value)
         FarmStatusLabel:Set("Status: Iniciando rotina...")
         
         farmTask = task.spawn(function()
-            -- Espera crucial inicial para dar tempo do mapa e do Boss spawnarem no Client
-            task.wait(4) 
+            -- Espera inicial LONGA para garantir que o mapa carregue.
+            -- Teleportar rápido demais logo ao entrar no jogo causa Crash no Client do Roblox!
+            task.wait(15) 
             
             while autoFarmEnabled do
                 local success, err = pcall(function()

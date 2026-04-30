@@ -17,9 +17,9 @@ local connectionFailed
 connectionFailed = TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
     if player == Players.LocalPlayer then
         warn("Teleport Falhou! Tentando cancelar estado de Hop. Motivo: " .. tostring(errorMessage))
-        -- Libera o isHopping se estivesse preso para tentar outro servidor, mas espera 10s para evitar spam
+        -- Se o teleporte falhar, aguardamos bastante tempo para não criar conflito com o Client
         task.spawn(function()
-            task.wait(10)
+            task.wait(20)
             if getfenv().isHopping ~= nil then
                 getfenv().isHopping = false
             end
@@ -409,9 +409,16 @@ local function GetBossInWorkspace()
 end
 
 getfenv().isHopping = false
+local LastHopAttempt = 0
+
 local function ForceServerHop()
+    -- Hard Cooldown de 60 segundos absoluto entre tentativas de hop
+    -- Isso garante 100% que o executor nunca vai spammar Teleport e crashar o jogo, mesmo se houver falhas.
+    if tick() - LastHopAttempt < 60 then return end
+    
     if getfenv().isHopping then return end
     getfenv().isHopping = true
+    LastHopAttempt = tick()
     
     Rayfield:Notify({Title="Server Hop", Content="Procurando novo servidor público...", Duration=5})
     
@@ -431,9 +438,9 @@ local function ForceServerHop()
             local validServers = {}
             for _, server in ipairs(data.data) do
                 if type(server) == "table" and server.playing and server.maxPlayers then
-                    -- Filtra: não está cheio (com margem de 2 vagas para evitar fila), não é o atual, e tem pelo menos 2 players
+                    -- Filtra: Evita "Ghost Servers" (menos de 5 players) e evita Servidores Lotados por causa de Cache de API (margem de 5 vagas)
                     local pingOk = (server.ping ~= nil and server.ping < 300) or true
-                    if server.playing >= 2 and server.playing <= server.maxPlayers - 2 and server.id ~= game.JobId and pingOk then
+                    if server.playing >= 5 and server.playing <= server.maxPlayers - 5 and server.id ~= game.JobId and pingOk then
                         table.insert(validServers, server.id)
                     end
                 end

@@ -1,10 +1,10 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
@@ -34,28 +34,19 @@ local AppState = {
     LastRollTick = 0,
     LastFarmTick = 0,
     LastTokenTick = 0,
-    StartupTick = tick() -- Tempo em que o script iniciou
+    StartupTick = tick()
 }
 
-local BossNameMapping = {
-    ["Yuje"] = "Yuji", 
-    ["Satoro"] = "Goujo", 
-    ["Sakana"] = "Meguna"
-}
+local BossNameMapping = { ["Yuje"] = "Yuji", ["Satoro"] = "Goujo", ["Sakana"] = "Meguna" }
 local Bosses = {"Yuje", "Satoro", "Sakana"}
+local Buffs = {"Power", "Damage", "Crystals"}
 local OptionsToUUIDs = {}
-
--- UI Elements
-local Window, MainTab, BossTab, ConfigTab
-local TokenLabel, FarmStatusLabel, PetDropdown, TargetDropdown
 
 -- ==========================================
 -- CORE FUNCTIONS
 -- ==========================================
 local function SaveConfig()
-    if writefile then
-        pcall(function() writefile(ConfigName, HttpService:JSONEncode(HubConfig)) end)
-    end
+    if writefile then pcall(function() writefile(ConfigName, HttpService:JSONEncode(HubConfig)) end) end
 end
 
 local function LoadConfig()
@@ -67,36 +58,302 @@ local function LoadConfig()
     end
 end
 
-local function SafeSetUI(label, stateKey, newText)
-    if AppState[stateKey] ~= newText then
-        AppState[stateKey] = newText
-        if label then pcall(function() label:Set(newText) end) end
+-- ==========================================
+-- CUSTOM VANILLA UI ENGINE (ANTI-LEAK)
+-- ==========================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "BifrostLiteUI"
+ScreenGui.ResetOnSpawn = false
+if not pcall(function() ScreenGui.Parent = CoreGui end) then
+    ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 320, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -200)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+Title.TextColor3 = Color3.fromRGB(200, 200, 255)
+Title.Text = "  Bifrost Hub Lite (Anti-Leak)"
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+Title.BorderSizePixel = 0
+
+local TabContainer = Instance.new("Frame", MainFrame)
+TabContainer.Size = UDim2.new(1, 0, 0, 30)
+TabContainer.Position = UDim2.new(0, 0, 0, 30)
+TabContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+TabContainer.BorderSizePixel = 0
+local TabLayout = Instance.new("UIListLayout", TabContainer)
+TabLayout.FillDirection = Enum.FillDirection.Horizontal
+
+local ContentContainer = Instance.new("Frame", MainFrame)
+ContentContainer.Size = UDim2.new(1, -20, 1, -70)
+ContentContainer.Position = UDim2.new(0, 10, 0, 70)
+ContentContainer.BackgroundTransparency = 1
+
+local Tabs = {}
+local function CreateTab(name)
+    local btn = Instance.new("TextButton", TabContainer)
+    btn.Size = UDim2.new(1/3, 0, 1, 0)
+    btn.Text = name
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 12
+    btn.BorderSizePixel = 0
+    
+    local content = Instance.new("ScrollingFrame", ContentContainer)
+    content.Size = UDim2.new(1, 0, 1, 0)
+    content.BackgroundTransparency = 1
+    content.ScrollBarThickness = 4
+    content.Visible = false
+    content.BorderSizePixel = 0
+    
+    local layout = Instance.new("UIListLayout", content)
+    layout.Padding = UDim.new(0, 8)
+    
+    Tabs[name] = {Button = btn, Content = content}
+    
+    btn.MouseButton1Click:Connect(function()
+        for tName, tabData in pairs(Tabs) do
+            tabData.Content.Visible = (tName == name)
+            tabData.Button.BackgroundColor3 = (tName == name) and Color3.fromRGB(50, 50, 60) or Color3.fromRGB(30, 30, 35)
+            tabData.Button.TextColor3 = (tName == name) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+        end
+    end)
+    return content
+end
+
+local function CreateLabel(parent, text)
+    local lbl = Instance.new("TextLabel", parent)
+    lbl.Size = UDim2.new(1, 0, 0, 20)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+    lbl.Text = text
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    return lbl
+end
+
+local function CreateButton(parent, text, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 13
+    btn.BorderSizePixel = 0
+    local corner = Instance.new("UICorner", btn)
+    corner.CornerRadius = UDim.new(0, 4)
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local function CreateToggle(parent, text, default, callback)
+    local state = default
+    local btn = CreateButton(parent, text .. ": " .. (state and "ON" or "OFF"), nil)
+    btn.BackgroundColor3 = state and Color3.fromRGB(50, 120, 50) or Color3.fromRGB(120, 50, 50)
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.Text = text .. ": " .. (state and "ON" or "OFF")
+        btn.BackgroundColor3 = state and Color3.fromRGB(50, 120, 50) or Color3.fromRGB(120, 50, 50)
+        callback(state)
+    end)
+    return function(newState)
+        state = newState
+        btn.Text = text .. ": " .. (state and "ON" or "OFF")
+        btn.BackgroundColor3 = state and Color3.fromRGB(50, 120, 50) or Color3.fromRGB(120, 50, 50)
     end
 end
 
--- Limpeza total de memória para evitar Crash do Executor no Hop
+local function SafeSetUI(label, stateKey, newText)
+    if AppState[stateKey] ~= newText then
+        AppState[stateKey] = newText
+        if label then pcall(function() label.Text = newText end) end
+    end
+end
+
+-- ==========================================
+-- LOGIC & UI BINDING
+-- ==========================================
+LoadConfig()
+
+local TabRoll = CreateTab("Auto-Roll")
+local TabFarm = CreateTab("Global Farm")
+local TabConfig = CreateTab("Config")
+
+-- Ativa a primeira tab
+Tabs["Auto-Roll"].Button.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+Tabs["Auto-Roll"].Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+Tabs["Auto-Roll"].Content.Visible = true
+
+-- [ AUTO-ROLL TAB ]
+local TokenLabel = CreateLabel(TabRoll, "Rename Tokens: Procurando...")
+
+local PetsContainer = Instance.new("Frame", TabRoll)
+PetsContainer.Size = UDim2.new(1, 0, 0, 100)
+PetsContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+PetsContainer.BorderSizePixel = 0
+local PetsCorner = Instance.new("UICorner", PetsContainer)
+PetsCorner.CornerRadius = UDim.new(0, 4)
+local PetsScroll = Instance.new("ScrollingFrame", PetsContainer)
+PetsScroll.Size = UDim2.new(1, -10, 1, -10)
+PetsScroll.Position = UDim2.new(0, 5, 0, 5)
+PetsScroll.BackgroundTransparency = 1
+PetsScroll.ScrollBarThickness = 3
+local PetsLayout = Instance.new("UIListLayout", PetsScroll)
+PetsLayout.Padding = UDim.new(0, 2)
+
+local function RefreshPetsUI()
+    for _, child in ipairs(PetsScroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    AppState.SelectedPetUUIDs = {}
+    
+    local pets = {}
+    table.clear(OptionsToUUIDs)
+    pcall(function()
+        local units = Omni.Data.Inventory.Units
+        if units then
+            for uuid, pet in pairs(units) do
+                local dName = pet.CustomName or pet.Name or "Unknown"
+                local p = pet.RenameBuffs and pet.RenameBuffs["Power"] or 0
+                local d = pet.RenameBuffs and pet.RenameBuffs["Damage"] or 0
+                local c = pet.RenameBuffs and pet.RenameBuffs["Crystals"] or 0
+                local opt = string.format("%s (P:%.1f D:%.1f C:%.1f)", dName, p, d, c)
+                
+                local btn = Instance.new("TextButton", PetsScroll)
+                btn.Size = UDim2.new(1, 0, 0, 25)
+                btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+                btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+                btn.Text = "[ ] " .. opt
+                btn.Font = Enum.Font.Gotham
+                btn.TextSize = 11
+                btn.BorderSizePixel = 0
+                
+                local selected = false
+                btn.MouseButton1Click:Connect(function()
+                    selected = not selected
+                    if selected then
+                        btn.Text = "[X] " .. opt
+                        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        btn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+                        table.insert(AppState.SelectedPetUUIDs, uuid)
+                    else
+                        btn.Text = "[ ] " .. opt
+                        btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+                        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+                        for i, v in ipairs(AppState.SelectedPetUUIDs) do
+                            if v == uuid then table.remove(AppState.SelectedPetUUIDs, i) break end
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+    PetsScroll.CanvasSize = UDim2.new(0, 0, 0, PetsLayout.AbsoluteContentSize.Y)
+end
+
+CreateButton(TabRoll, "Refresh Pet List", function() RefreshPetsUI() end)
+RefreshPetsUI()
+
+local function NextInArray(arr, current)
+    for i, v in ipairs(arr) do
+        if v == current then return arr[i+1] or arr[1] end
+    end
+    return arr[1]
+end
+
+local BuffBtn
+BuffBtn = CreateButton(TabRoll, "Target Buff: " .. HubConfig.SelectedBuff, function()
+    HubConfig.SelectedBuff = NextInArray(Buffs, HubConfig.SelectedBuff)
+    BuffBtn.Text = "Target Buff: " .. HubConfig.SelectedBuff
+    SaveConfig()
+end)
+
+local ValFrame = Instance.new("Frame", TabRoll)
+ValFrame.Size = UDim2.new(1, 0, 0, 30)
+ValFrame.BackgroundTransparency = 1
+
+local ValSub = CreateButton(ValFrame, "-", function()
+    HubConfig.TargetValue = math.max(0.10, HubConfig.TargetValue - 0.05)
+    ValFrame:FindFirstChild("ValLbl").Text = string.format("Value: %.2f", HubConfig.TargetValue)
+    SaveConfig()
+end)
+ValSub.Size = UDim2.new(0.2, 0, 1, 0)
+ValSub.Position = UDim2.new(0, 0, 0, 0)
+
+local ValLbl = CreateLabel(ValFrame, string.format("Value: %.2f", HubConfig.TargetValue))
+ValLbl.Name = "ValLbl"
+ValLbl.Size = UDim2.new(0.6, 0, 1, 0)
+ValLbl.Position = UDim2.new(0.2, 0, 0, 0)
+ValLbl.TextXAlignment = Enum.TextXAlignment.Center
+
+local ValAdd = CreateButton(ValFrame, "+", function()
+    HubConfig.TargetValue = math.min(3.00, HubConfig.TargetValue + 0.05)
+    ValLbl.Text = string.format("Value: %.2f", HubConfig.TargetValue)
+    SaveConfig()
+end)
+ValAdd.Size = UDim2.new(0.2, 0, 1, 0)
+ValAdd.Position = UDim2.new(0.8, 0, 0, 0)
+
+local SetAutoRoll
+SetAutoRoll = CreateToggle(TabRoll, "Auto-Roll", false, function(val)
+    if val and #AppState.SelectedPetUUIDs == 0 then
+        -- Notify visual nativo
+        local t = Title.Text
+        Title.Text = "  SELECIONE UM PET!"
+        Title.TextColor3 = Color3.fromRGB(255, 100, 100)
+        task.delay(2, function() Title.Text = t Title.TextColor3 = Color3.fromRGB(200, 200, 255) end)
+        SetAutoRoll(false)
+        return
+    end
+    AppState.AutoRollEnabled = val
+end)
+
+-- [ GLOBAL FARM TAB ]
+local BossBtn
+BossBtn = CreateButton(TabFarm, "Selected Boss: " .. HubConfig.SelectedBoss, function()
+    HubConfig.SelectedBoss = NextInArray(Bosses, HubConfig.SelectedBoss)
+    BossBtn.Text = "Selected Boss: " .. HubConfig.SelectedBoss
+    SaveConfig()
+end)
+
+local SetAutoHop = CreateToggle(TabFarm, "Auto Server-Hop", HubConfig.AutoHop, function(val)
+    HubConfig.AutoHop = val
+    SaveConfig()
+end)
+
+local SetAutoFarm = CreateToggle(TabFarm, "Auto-Farm Boss", HubConfig.AutoFarm, function(val)
+    HubConfig.AutoFarm = val
+    SaveConfig()
+end)
+
+local FarmStatusLabel = CreateLabel(TabFarm, "Status: Aguardando...")
+
 local function TeardownAndHop(placeId, serverId)
     AppState.LastHopAttempt = tick()
     AppState.IsHopping = true
     
-    -- Destrói a Interface Gráfica e libera a RAM ocupada por Tweens e Sinais da Rayfield
-    if Rayfield then
-        pcall(function() Rayfield:Destroy() end)
-    end
-    
-    -- Desconecta o loop principal (State Machine)
+    -- Autodestruição limpa de interface
+    if ScreenGui then pcall(function() ScreenGui:Destroy() end) end
     RunService:UnbindFromRenderStep("Bifrost_StateMachine")
     
     task.wait(1)
-    
-    pcall(function()
-        task.spawn(function()
-            TeleportService:TeleportToPlaceInstance(placeId, serverId, Players.LocalPlayer)
-        end)
-    end)
+    pcall(function() task.spawn(function() TeleportService:TeleportToPlaceInstance(placeId, serverId, Players.LocalPlayer) end) end)
     
     task.wait(60)
-    AppState.IsHopping = false -- Apenas destrava se o TeleportService falhar silenciosamente
+    AppState.IsHopping = false
 end
 
 local function ForceServerHop()
@@ -108,7 +365,6 @@ local function ForceServerHop()
     
     local placeId = game.PlaceId
     local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100", placeId)
-    
     local s, r = pcall(function() return game:HttpGet(url) end)
     if s then
         local ds, d = pcall(function() return HttpService:JSONDecode(r) end)
@@ -116,39 +372,44 @@ local function ForceServerHop()
             local valid = {}
             for _, server in ipairs(d.data) do
                 if type(server) == "table" and server.playing and server.maxPlayers then
-                    local pingOk = (server.ping ~= nil and server.ping < 300) or true
-                    if server.playing >= 1 and server.playing <= server.maxPlayers - 2 and server.id ~= game.JobId and pingOk then
+                    if server.playing >= 1 and server.playing <= server.maxPlayers - 2 and server.id ~= game.JobId then
                         table.insert(valid, server.id)
                     end
                 end
             end
             if #valid > 0 then
-                local randomServerId = valid[math.random(1, #valid)]
-                TeardownAndHop(placeId, randomServerId)
+                TeardownAndHop(placeId, valid[math.random(1, #valid)])
                 return
             end
         end
     end
-    
     AppState.IsHopping = false
-    SafeSetUI(FarmStatusLabel, "FarmText", "Status: Nenhum servidor encontrado. Aguardando...")
+    SafeSetUI(FarmStatusLabel, "FarmText", "Status: Nenhum servidor encontrado.")
 end
 
+CreateButton(TabFarm, "Force Server Hop", function() ForceServerHop() end)
+
+-- [ CONFIG TAB ]
+CreateButton(TabConfig, "Save Settings", function()
+    SaveConfig()
+    local t = Title.Text
+    Title.Text = "  Salvo com Sucesso!"
+    Title.TextColor3 = Color3.fromRGB(100, 255, 100)
+    task.delay(2, function() Title.Text = t Title.TextColor3 = Color3.fromRGB(200, 200, 255) end)
+end)
+
+-- [ STATE MACHINE LOGIC ]
 local function GetBossInWorkspace()
     local key = HubConfig.SelectedBoss
     local map = BossNameMapping[key] or key
-    
     local roots = { Workspace, Workspace:FindFirstChild("Mobs"), Workspace:FindFirstChild("Entities"), Workspace:FindFirstChild("Bosses"), Workspace:FindFirstChild("LiveBosses") }
-    
     for _, root in ipairs(roots) do
         if root then
             for _, obj in ipairs(root:GetChildren()) do
                 if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj.Humanoid.MaxHealth > 100 then
                     if not Players:GetPlayerFromCharacter(obj) and obj.Humanoid.Health > 0 then
                         local oName = string.lower(obj.Name)
-                        if string.find(oName, string.lower(map)) or string.find(oName, string.lower(key)) then
-                            return obj
-                        end
+                        if string.find(oName, string.lower(map)) or string.find(oName, string.lower(key)) then return obj end
                     end
                 end
             end
@@ -170,35 +431,8 @@ local function GetTokens()
                 end
             end
         end
-        if not found then
-            local consumables = Omni.Data.Inventory.Consumables
-            if consumables then
-                for k, v in pairs(consumables) do
-                    if type(k) == "string" and string.find(string.lower(k), "rename token") then
-                        found = true
-                        tokens = tokens + (type(v) == "table" and (v.Amount or v.Count or v.Quantity or 1) or (type(v) == "number" and v or 1))
-                    end
-                end
-            end
-        end
     end)
     return found, tokens
-end
-
-local function getPets()
-    local pets = {}
-    table.clear(OptionsToUUIDs)
-    local s, units = pcall(function() return Omni.Data.Inventory.Units end)
-    if not s or not units then return pets end
-    for uuid, pet in pairs(units) do
-        local dName = pet.CustomName or pet.Name or "Unknown"
-        local p, d, c = 0, 0, 0
-        if pet.RenameBuffs then p = pet.RenameBuffs["Power"] or 0 d = pet.RenameBuffs["Damage"] or 0 c = pet.RenameBuffs["Crystals"] or 0 end
-        local opt = string.format("%s - %s - (P=%.2f D=%.2f C=%.2f)", dName, string.sub(uuid, 1, 6), p, d, c)
-        table.insert(pets, opt)
-        OptionsToUUIDs[opt] = uuid
-    end
-    return pets
 end
 
 local function generateRandomName()
@@ -209,239 +443,68 @@ local function generateRandomName()
     return name
 end
 
--- ==========================================
--- UI INITIALIZATION
--- ==========================================
-LoadConfig()
-Window = Rayfield:CreateWindow({
-    Name = "Bifrost Hub | Modular Omni",
-    LoadingTitle = "Bifrost Hub",
-    LoadingSubtitle = "Auto-Roll & Boss Farm",
-    ConfigurationSaving = { Enabled = false },
-    KeySystem = false,
-    ToggleUIKeybind = "L"
-})
-
-MainTab = Window:CreateTab("Auto-Roll", 4483362458)
-BossTab = Window:CreateTab("Global Farm", 4483362458)
-ConfigTab = Window:CreateTab("Config", 4483362458)
-
-TokenLabel = MainTab:CreateLabel("Rename Tokens: Procurando...")
-
-PetDropdown = MainTab:CreateDropdown({
-    Name = "Select Pets",
-    Options = getPets(),
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "PetDropdown",
-    Callback = function(Option)
-        AppState.SelectedPetUUIDs = {}
-        if type(Option) == "table" then
-            for _, optStr in ipairs(Option) do
-                local uuid = OptionsToUUIDs[optStr]
-                if uuid then table.insert(AppState.SelectedPetUUIDs, uuid) end
-            end
-        end
-    end,
-})
-
-MainTab:CreateButton({
-    Name = "Refresh Pets",
-    Callback = function()
-        PetDropdown:Refresh(getPets(), true)
-        AppState.SelectedPetUUIDs = {}
-        Rayfield:Notify({Title = "Refreshed", Content = "Pet list updated.", Duration = 2})
-    end,
-})
-
-local function generateOptions(min, max)
-    local opts = {}
-    for i = math.floor(min*100), math.floor(max*100) do table.insert(opts, string.format("%.2f", i/100)) end
-    return opts
-end
-local buffOptions = { Power = generateOptions(1.00, 1.75), Damage = generateOptions(0.10, 0.75), Crystals = generateOptions(0.10, 0.75) }
-
-MainTab:CreateDropdown({
-    Name = "Select Buff",
-    Options = {"Power", "Damage", "Crystals"},
-    CurrentOption = HubConfig.SelectedBuff,
-    MultipleOptions = false,
-    Flag = "BuffDropdown",
-    Callback = function(Option)
-        if Option and Option[1] then
-            HubConfig.SelectedBuff = Option[1]
-            if TargetDropdown then
-                TargetDropdown:Refresh(buffOptions[HubConfig.SelectedBuff])
-                local defaultVal = string.format("%.2f", HubConfig.TargetValue)
-                TargetDropdown:Set({defaultVal})
-            end
-            SaveConfig()
-        end
-    end,
-})
-
-TargetDropdown = MainTab:CreateDropdown({
-    Name = "Target Buff Value (Minimum)",
-    Options = buffOptions[HubConfig.SelectedBuff] or buffOptions["Power"],
-    CurrentOption = string.format("%.2f", HubConfig.TargetValue),
-    MultipleOptions = false,
-    Flag = "TargetDropdown",
-    Callback = function(Option)
-        if Option and Option[1] then HubConfig.TargetValue = tonumber(Option[1]); SaveConfig() end
-    end,
-})
-
-local AutoRollToggle
-AutoRollToggle = MainTab:CreateToggle({
-    Name = "Auto-Roll",
-    CurrentValue = false,
-    Flag = "AutoRollToggle",
-    Callback = function(Value)
-        if Value and #AppState.SelectedPetUUIDs == 0 then
-            Rayfield:Notify({Title="Erro", Content="Selecione pets primeiro!", Duration=3})
-            AutoRollToggle:Set(false)
-            return
-        end
-        AppState.AutoRollEnabled = Value
-    end,
-})
-
-BossTab:CreateDropdown({
-    Name = "Select Global Boss",
-    Options = Bosses,
-    CurrentOption = HubConfig.SelectedBoss,
-    MultipleOptions = false,
-    Flag = "BossDropdown",
-    Callback = function(Option)
-        if Option and Option[1] then HubConfig.SelectedBoss = Option[1]; SaveConfig() end
-    end,
-})
-
-BossTab:CreateToggle({
-    Name = "Auto Server-Hop (If Boss Dead)",
-    CurrentValue = HubConfig.AutoHop,
-    Flag = "AutoHopToggle",
-    Callback = function(Value) HubConfig.AutoHop = Value; SaveConfig() end,
-})
-
-FarmStatusLabel = BossTab:CreateLabel("Status: Aguardando...")
-
-BossTab:CreateToggle({
-    Name = "Auto-Farm Boss",
-    CurrentValue = HubConfig.AutoFarm,
-    Flag = "FarmBossToggle",
-    Callback = function(Value) HubConfig.AutoFarm = Value; SaveConfig() end,
-})
-
-BossTab:CreateButton({
-    Name = "Force Server Hop",
-    Callback = function() ForceServerHop() end,
-})
-
-ConfigTab:CreateButton({ Name = "Save Settings", Callback = function() SaveConfig() end })
-ConfigTab:CreateButton({
-    Name = "Reset Settings",
-    Callback = function()
-        HubConfig = { SelectedBuff = "Power", TargetValue = 1.00, SelectedBoss = "Yuje", AutoHop = false, AutoFarm = false }
-        SaveConfig()
-        Rayfield:Notify({Title="Config", Content="Configurações resetadas!", Duration=3})
-    end,
-})
-
--- ==========================================
--- STATE MACHINE (HEARTBEAT LOOP)
--- ==========================================
--- Uma única thread gerencia tudo. Sem vazamento de memória.
 RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.Value, function()
     local currentTick = tick()
     
-    -- 1. Atualizador de UI de Tokens (A cada 1.5s)
     if currentTick - AppState.LastTokenTick >= 1.5 then
         AppState.LastTokenTick = currentTick
         local found, tokens = GetTokens()
-        if found then
-            SafeSetUI(TokenLabel, "TokenText", "Rename Tokens: " .. tostring(tokens))
-        else
-            SafeSetUI(TokenLabel, "TokenText", "Rename Tokens: ???")
-        end
+        if found then SafeSetUI(TokenLabel, "TokenText", "Rename Tokens: " .. tostring(tokens)) end
     end
     
-    -- 2. Lógica de Auto-Farm & Server Hop (A cada 0.5s)
     if HubConfig.AutoFarm and not AppState.IsHopping then
         if currentTick - AppState.StartupTick < 15 then
-            SafeSetUI(FarmStatusLabel, "FarmText", "Status: Aguardando carregamento do mapa (" .. math.floor(15 - (currentTick - AppState.StartupTick)) .. "s)")
+            SafeSetUI(FarmStatusLabel, "FarmText", "Status: Aguardando mapa (" .. math.floor(15 - (currentTick - AppState.StartupTick)) .. "s)")
         elseif currentTick - AppState.LastFarmTick >= 0.5 then
             AppState.LastFarmTick = currentTick
-            
             pcall(function()
                 local boss = GetBossInWorkspace()
                 if boss then
-                    SafeSetUI(FarmStatusLabel, "FarmText", "Status: Atacando " .. boss.Name .. " (" .. math.floor(boss.Humanoid.Health) .. " HP)")
+                    SafeSetUI(FarmStatusLabel, "FarmText", "Status: Atacando " .. boss.Name)
                     local dataRemote = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
-                    if dataRemote then
-                        dataRemote:FireServer(unpack({ { { "General", "Attack", "Click", {}, n = 4 }, "\002" } }))
-                    end
+                    if dataRemote then dataRemote:FireServer(unpack({ { { "General", "Attack", "Click", {}, n = 4 }, "\002" } })) end
                 else
                     if HubConfig.AutoHop then
-                        -- Apenas tenta o Hop se passou o delay seguro pra não encavalar requests
-                        if tick() - AppState.LastHopAttempt > 5 then
-                            ForceServerHop()
-                        end
+                        if tick() - AppState.LastHopAttempt > 5 then ForceServerHop() end
                     else
-                        SafeSetUI(FarmStatusLabel, "FarmText", "Status: Boss ausente. Aguardando spawn...")
+                        SafeSetUI(FarmStatusLabel, "FarmText", "Status: Boss ausente.")
                     end
                 end
             end)
         end
-    elseif not HubConfig.AutoFarm and AppState.FarmText ~= "Status: Parado" and not AppState.IsHopping then
+    elseif not HubConfig.AutoFarm and not AppState.IsHopping then
         SafeSetUI(FarmStatusLabel, "FarmText", "Status: Parado")
     end
     
-    -- 3. Lógica de Auto-Roll (A cada 0.8s)
     if AppState.AutoRollEnabled and #AppState.SelectedPetUUIDs > 0 then
         if currentTick - AppState.LastRollTick >= 0.8 then
             AppState.LastRollTick = currentTick
             pcall(function()
-                -- Encontra o primeiro pet que ainda precisa rolar
                 local targetUuid = nil
-                local targetIndex = nil
-                
                 for i, uuid in ipairs(AppState.SelectedPetUUIDs) do
                     local petData = Omni.Data.Inventory.Units[uuid]
                     if petData then
-                        local currentBuffValue = 0
-                        if petData.RenameBuffs and petData.RenameBuffs[HubConfig.SelectedBuff] then
-                            currentBuffValue = petData.RenameBuffs[HubConfig.SelectedBuff]
-                        end
+                        local currentBuffValue = (petData.RenameBuffs and petData.RenameBuffs[HubConfig.SelectedBuff]) or 0
                         if currentBuffValue < HubConfig.TargetValue - 0.001 then
                             targetUuid = uuid
-                            targetIndex = i
                             break
                         else
-                            Rayfield:Notify({Title = "Sucesso!", Content = petData.Name .. " atingiu a meta!", Duration = 5})
                             table.remove(AppState.SelectedPetUUIDs, i)
-                            return -- Dá break no loop e pula pro próximo tick
+                            RefreshPetsUI()
+                            return
                         end
                     else
                         table.remove(AppState.SelectedPetUUIDs, i)
                     end
                 end
-                
-                if targetUuid then
-                    local newName = generateRandomName()
-                    Omni.Signal:Fire("General", "Units", "Rename", targetUuid, newName)
-                end
+                if targetUuid then Omni.Signal:Fire("General", "Units", "Rename", targetUuid, generateRandomName()) end
             end)
         end
     end
 end)
 
--- Handle Teleport Failure
 TeleportService.TeleportInitFailed:Connect(function(player)
     if player == Players.LocalPlayer then
-        task.spawn(function()
-            task.wait(10)
-            AppState.IsHopping = false
-        end)
+        task.spawn(function() task.wait(10); AppState.IsHopping = false end)
     end
 end)

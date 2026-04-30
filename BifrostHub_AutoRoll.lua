@@ -459,7 +459,9 @@ local function ForceServerHop()
                 LastHopAttempt = tick()
                 
                 pcall(function()
-                    TeleportService:TeleportToPlaceInstance(placeId, randomServerId, Players.LocalPlayer)
+                    task.spawn(function()
+                        TeleportService:TeleportToPlaceInstance(placeId, randomServerId, Players.LocalPlayer)
+                    end)
                 end)
                 
                 -- Se o teleport foi acionado, não podemos destravar o isHopping rapidamente.
@@ -543,9 +545,11 @@ local function HandleFarmToggle(Value)
                                 dataRemote:FireServer(unpack(args))
                             end
                         end)
-                        task.wait(0.2) -- Otimizado: sem lag
+                        task.wait(0.5) -- Otimizado: reduzido envio de pacotes para aliviar a memória (Madium)
                     else
                         -- Boss não encontrado ou morto
+                        task.wait(5) -- Delay crucial para o Roblox limpar a memória do server antigo antes de pular
+                        
                         if HubConfig.AutoHop then
                             SafeSetStatus("Status: Boss ausente. Iniciando Server Hop...")
                             ForceServerHop()

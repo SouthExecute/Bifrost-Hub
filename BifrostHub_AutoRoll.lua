@@ -22,6 +22,9 @@ local HubConfig = {
     SelectedBoss = "Yuje",
     AutoHop = false,
     AutoFarm = false,
+    AnchorX = nil,
+    AnchorY = nil,
+    AnchorZ = nil,
 }
 
 local AppState = {
@@ -349,6 +352,18 @@ local SetAutoFarm = CreateToggle(TabFarm, "Auto-Farm Boss", HubConfig.AutoFarm, 
     SaveConfig()
 end)
 
+CreateButton(TabFarm, "Set Farm Anchor (Stand here)", function()
+    local char = Players.LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        HubConfig.AnchorX = hrp.Position.X
+        HubConfig.AnchorY = hrp.Position.Y
+        HubConfig.AnchorZ = hrp.Position.Z
+        SaveConfig()
+        SafeSetUI(FarmStatusLabel, "FarmText", "Status: Âncora de posição salva!")
+    end
+end)
+
 local FarmStatusLabel = CreateLabel(TabFarm, "Status: Aguardando...")
 
 local function TeardownAndHop(placeId, serverId)
@@ -471,24 +486,23 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
             SafeSetUI(FarmStatusLabel, "FarmText", "Status: Aguardando mapa (" .. math.floor(15 - (currentTick - AppState.StartupTick)) .. "s)")
         elseif currentTick - AppState.LastFarmTick >= 0.5 then
             AppState.LastFarmTick = currentTick
+            
+            -- Âncora Absoluta (Funciona com ou sem Boss)
+            if HubConfig.AnchorX and HubConfig.AnchorY and HubConfig.AnchorZ then
+                local char = Players.LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local anchorPos = Vector3.new(HubConfig.AnchorX, HubConfig.AnchorY, HubConfig.AnchorZ)
+                    if (hrp.Position - anchorPos).Magnitude > 15 then
+                        hrp.CFrame = CFrame.new(anchorPos)
+                    end
+                end
+            end
+            
             pcall(function()
                 local boss = GetBossInWorkspace()
                 if boss then
                     SafeSetUI(FarmStatusLabel, "FarmText", "Status: Atacando " .. boss.Name)
-                    
-                    -- Auto-Posicionamento: Evita que o boss empurre o jogador para fora do range
-                    local char = Players.LocalPlayer.Character
-                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                    local bossHrp = boss:FindFirstChild("HumanoidRootPart")
-                    
-                    if hrp and bossHrp then
-                        local dist = (hrp.Position - bossHrp.Position).Magnitude
-                        if dist > 20 then
-                            -- Teleporte clean (discreto) apenas para corrigir a posição
-                            hrp.CFrame = bossHrp.CFrame * CFrame.new(0, 0, 5)
-                        end
-                    end
-                    
                     local dataRemote = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
                     if dataRemote then dataRemote:FireServer(unpack({ { { "General", "Attack", "Click", {}, n = 4 }, "\002" } })) end
                 else

@@ -501,10 +501,14 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
             if HubConfig.AnchorX and HubConfig.AnchorY and HubConfig.AnchorZ then
                 local char = Players.LocalPlayer.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if hrp then
+                local hum = char and char:FindFirstChild("Humanoid")
+                if hrp and hum and hum.Health > 0 then
                     local anchorPos = Vector3.new(HubConfig.AnchorX, HubConfig.AnchorY, HubConfig.AnchorZ)
                     if (hrp.Position - anchorPos).Magnitude > 5 then
-                        hrp.CFrame = CFrame.new(anchorPos)
+                        -- Prevenção de Crash de Física (NaN Velocity)
+                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                        char:PivotTo(CFrame.new(anchorPos))
                     end
                 end
             end

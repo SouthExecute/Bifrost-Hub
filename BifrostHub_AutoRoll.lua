@@ -493,7 +493,7 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
                 if hrp then
                     local anchorPos = Vector3.new(HubConfig.AnchorX, HubConfig.AnchorY, HubConfig.AnchorZ)
-                    if (hrp.Position - anchorPos).Magnitude > 15 then
+                    if (hrp.Position - anchorPos).Magnitude > 5 then
                         hrp.CFrame = CFrame.new(anchorPos)
                     end
                 end

@@ -475,6 +475,20 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
                 local boss = GetBossInWorkspace()
                 if boss then
                     SafeSetUI(FarmStatusLabel, "FarmText", "Status: Atacando " .. boss.Name)
+                    
+                    -- Auto-Posicionamento: Evita que o boss empurre o jogador para fora do range
+                    local char = Players.LocalPlayer.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    local bossHrp = boss:FindFirstChild("HumanoidRootPart")
+                    
+                    if hrp and bossHrp then
+                        local dist = (hrp.Position - bossHrp.Position).Magnitude
+                        if dist > 20 then
+                            -- Teleporte clean (discreto) apenas para corrigir a posição
+                            hrp.CFrame = bossHrp.CFrame * CFrame.new(0, 0, 5)
+                        end
+                    end
+                    
                     local dataRemote = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
                     if dataRemote then dataRemote:FireServer(unpack({ { { "General", "Attack", "Click", {}, n = 4 }, "\002" } })) end
                 else

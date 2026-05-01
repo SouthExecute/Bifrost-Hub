@@ -352,7 +352,10 @@ local SetAutoFarm = CreateToggle(TabFarm, "Auto-Farm Boss", HubConfig.AutoFarm, 
     SaveConfig()
 end)
 
-CreateButton(TabFarm, "Set Farm Anchor (Stand here)", function()
+local FarmStatusLabel = CreateLabel(TabFarm, "Status: Aguardando...")
+
+local AnchorBtn
+AnchorBtn = CreateButton(TabFarm, "Set Farm Anchor (Stand here)", function()
     local char = Players.LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if hrp then
@@ -360,11 +363,18 @@ CreateButton(TabFarm, "Set Farm Anchor (Stand here)", function()
         HubConfig.AnchorY = hrp.Position.Y
         HubConfig.AnchorZ = hrp.Position.Z
         SaveConfig()
-        SafeSetUI(FarmStatusLabel, "FarmText", "Status: Âncora de posição salva!")
+        
+        SafeSetUI(FarmStatusLabel, "FarmText", "Status: Âncora gravada com sucesso!")
+        
+        local oldText = AnchorBtn.Text
+        AnchorBtn.Text = "✓ Posição Salva!"
+        AnchorBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        task.delay(1.5, function()
+            AnchorBtn.Text = oldText
+            AnchorBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        end)
     end
 end)
-
-local FarmStatusLabel = CreateLabel(TabFarm, "Status: Aguardando...")
 
 local function TeardownAndHop(placeId, serverId)
     AppState.LastHopAttempt = tick()

@@ -96,13 +96,13 @@ Instance.new("UICorner",vl).CornerRadius=UDim.new(0,4)
 
 -- Close btn
 local cb=Instance.new("TextButton",tb) cb.Size=UDim2.new(0,26,0,26) cb.Position=UDim2.new(1,-30,0.5,-13)
-cb.BackgroundColor3=T.TitleBar cb.Text="âœ•" cb.TextColor3=T.T2 cb.Font=Enum.Font.GothamBold
+cb.BackgroundColor3=T.TitleBar cb.Text="X" cb.TextColor3=T.T2 cb.Font=Enum.Font.GothamBold
 cb.TextSize=13 cb.BorderSizePixel=0 cb.AutoButtonColor=false
 Instance.new("UICorner",cb).CornerRadius=UDim.new(0,4)
 
 -- Minimize btn
 local mb=Instance.new("TextButton",tb) mb.Size=UDim2.new(0,26,0,26) mb.Position=UDim2.new(1,-58,0.5,-13)
-mb.BackgroundColor3=T.TitleBar mb.Text="â€”" mb.TextColor3=T.T2 mb.Font=Enum.Font.GothamBold
+mb.BackgroundColor3=T.TitleBar mb.Text="_" mb.TextColor3=T.T2 mb.Font=Enum.Font.GothamBold
 mb.TextSize=13 mb.BorderSizePixel=0 mb.AutoButtonColor=false
 Instance.new("UICorner",mb).CornerRadius=UDim.new(0,4)
 
@@ -191,6 +191,7 @@ end
 local function SafeSetUI(lbl,key,txt)
     if AppState[key]~=txt then AppState[key]=txt if lbl then pcall(function() lbl.Text=txt end) end end
 end
+
 -- ========== UI STATE ==========
 local function MinimizeUI() MF.Visible=false FI.Visible=true AppState.UIVisible=false end
 local function RestoreUI() MF.Visible=true FI.Visible=false AppState.UIVisible=true end
@@ -208,7 +209,7 @@ local ccf=false
 cb.MouseButton1Click:Connect(function()
     if ccf then DestroyUI() else
         ccf=true cb.Text="?" cb.TextColor3=Color3.fromRGB(255,80,80)
-        task.delay(3,function() if not AppState.UIDestroyed then ccf=false pcall(function() cb.Text="âœ•" cb.TextColor3=T.T2 end) end end)
+        task.delay(3,function() if not AppState.UIDestroyed then ccf=false pcall(function() cb.Text="X" cb.TextColor3=T.T2 end) end end)
     end
 end)
 mb.MouseButton1Click:Connect(function() MinimizeUI() end)
@@ -244,14 +245,14 @@ local function RefreshPetsUI()
             local c2=pet.RenameBuffs and pet.RenameBuffs["Crystals"] or 0
             local opt=string.format("%s (P:%.1f D:%.1f C:%.1f)",dn,p,d,c2)
             local pb=Instance.new("TextButton",PS) pb.Size=UDim2.new(1,0,0,22) pb.BackgroundColor3=T.PetN
-            pb.TextColor3=T.T2 pb.Text="  â—‹  "..opt pb.TextXAlignment=Enum.TextXAlignment.Left
+            pb.TextColor3=T.T2 pb.Text="  [ ]  "..opt pb.TextXAlignment=Enum.TextXAlignment.Left
             pb.Font=Enum.Font.Gotham pb.TextSize=10 pb.BorderSizePixel=0 pb.AutoButtonColor=false
             Instance.new("UICorner",pb).CornerRadius=UDim.new(0,4)
             local sel=false
             pb.MouseButton1Click:Connect(function()
                 sel=not sel
-                if sel then pb.Text="  â—  "..opt pb.TextColor3=T.T1 pb.BackgroundColor3=T.PetS table.insert(AppState.SelectedPetUUIDs,uuid)
-                else pb.Text="  â—‹  "..opt pb.TextColor3=T.T2 pb.BackgroundColor3=T.PetN
+                if sel then pb.Text="  [X]  "..opt pb.TextColor3=T.T1 pb.BackgroundColor3=T.PetS table.insert(AppState.SelectedPetUUIDs,uuid)
+                else pb.Text="  [ ]  "..opt pb.TextColor3=T.T2 pb.BackgroundColor3=T.PetN
                     for i,v in ipairs(AppState.SelectedPetUUIDs) do if v==uuid then table.remove(AppState.SelectedPetUUIDs,i) break end end
                 end
             end)
@@ -309,7 +310,7 @@ ABtn=Btn(TabFarm,"Set Farm Anchor (Stand here)",function()
     if hr then
         HubConfig.AnchorX=hr.Position.X HubConfig.AnchorY=hr.Position.Y HubConfig.AnchorZ=hr.Position.Z SaveConfig()
         SafeSetUI(FSL,"FarmText","Status: Anchor saved!")
-        local ot=ABtn.Text ABtn.Text="âœ“ Saved!" ABtn.BackgroundColor3=Color3.fromRGB(40,130,50)
+        local ot=ABtn.Text ABtn.Text=">> Saved!" ABtn.BackgroundColor3=Color3.fromRGB(40,130,50)
         task.delay(1.5,function() pcall(function() ABtn.Text=ot ABtn.BackgroundColor3=T.Btn end) end)
     end
 end)
@@ -350,8 +351,9 @@ Btn(TabSet,"Save Settings",function()
     task.delay(2,function() pcall(function() tl.Text=ot tl.TextColor3=T.Accent end) end)
 end)
 Header(TabSet,"INFO")
-Label(TabSet,"Bifrost Hub v2.0 â€” Vanilla UI")
-Label(TabSet,"Performance-first â€¢ Zero dependencies")
+Label(TabSet,"Bifrost Hub v2.0 - Vanilla UI")
+Label(TabSet,"Performance-first | Zero dependencies")
+
 -- ========== GAME LOGIC (preserved) ==========
 local function TeardownAndHop(placeId, serverId)
     AppState.LastHopAttempt = tick()

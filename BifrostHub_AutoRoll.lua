@@ -27,7 +27,7 @@ local AppState = {
 local BossNameMapping = {["Yuje"]="Yuji",["Satoro"]="Goujo",["Sakana"]="Meguna"}
 local Bosses = {"Yuje","Satoro","Sakana"}
 local Buffs = {"Power","Damage","Crystals"}
-local OptionsToUUIDs = {}
+
 local Connections = {}
 
 local function SaveConfig()
@@ -212,7 +212,7 @@ Instance.new("UICorner", FI).CornerRadius = UDim.new(0.5, 0)
 
 -- ========== TAB SYSTEM ==========
 local Tabs = {}
-local TabLabels = {}
+
 local function CreateTab(name, icon)
     local bt = Instance.new("TextButton", TabBtnContainer)
     bt.Name = "T_" .. name
@@ -242,7 +242,7 @@ local function CreateTab(name, icon)
     Instance.new("UIListLayout", ct).Padding = UDim.new(0, 6)
 
     Tabs[name] = {Button = bt, Content = ct}
-    TabLabels[name] = name
+
 
     bt.MouseButton1Click:Connect(function()
         for n, d in pairs(Tabs) do
@@ -258,20 +258,6 @@ local function CreateTab(name, icon)
 end
 
 -- ========== HELPERS ==========
-local function Header(p, t)
-    local f = Instance.new("Frame", p)
-    f.Size = UDim2.new(1, 0, 0, 28)
-    f.BackgroundTransparency = 1
-    local h = Instance.new("TextLabel", f)
-    h.Size = UDim2.new(1, 0, 1, 0)
-    h.BackgroundTransparency = 1
-    h.Text = t
-    h.TextColor3 = T.T1
-    h.TextXAlignment = Enum.TextXAlignment.Left
-    h.Font = Enum.Font.GothamBold
-    h.TextSize = 15
-    return h
-end
 
 local function Label(p, t)
     local l = Instance.new("TextLabel", p)
@@ -398,7 +384,7 @@ PL.Padding = UDim.new(0, 3)
 local function RefreshPetsUI()
     for _, c in ipairs(PS:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
     AppState.SelectedPetUUIDs = {}
-    table.clear(OptionsToUUIDs)
+
     pcall(function()
         local units = Omni.Data.Inventory.Units
         if units then

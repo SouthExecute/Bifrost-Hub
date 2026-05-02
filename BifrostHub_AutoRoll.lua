@@ -42,25 +42,38 @@ end
 
 -- ========== THEME ==========
 local T = {
-    BG=Color3.fromRGB(14,14,18), Sidebar=Color3.fromRGB(18,18,24),
-    Content=Color3.fromRGB(22,22,28), TitleBar=Color3.fromRGB(10,10,14),
-    Accent=Color3.fromRGB(130,110,220), AccentDim=Color3.fromRGB(80,65,150),
-    Btn=Color3.fromRGB(30,30,38), BtnH=Color3.fromRGB(40,40,50),
-    On=Color3.fromRGB(40,105,65), Off=Color3.fromRGB(105,38,38),
-    T1=Color3.fromRGB(220,220,230), T2=Color3.fromRGB(140,140,160),
-    T3=Color3.fromRGB(80,80,100), Sep=Color3.fromRGB(35,35,45),
-    TabA=Color3.fromRGB(28,28,36), TabI=Color3.fromRGB(18,18,24),
-    Input=Color3.fromRGB(24,24,32), PetS=Color3.fromRGB(38,36,56),
-    PetN=Color3.fromRGB(26,26,34),
+    BG = Color3.fromRGB(20, 20, 28),
+    Sidebar = Color3.fromRGB(24, 24, 32),
+    Content = Color3.fromRGB(28, 28, 36),
+    TitleBar = Color3.fromRGB(24, 24, 32),
+    Accent = Color3.fromRGB(140, 120, 255),
+    AccentDim = Color3.fromRGB(90, 75, 170),
+    Btn = Color3.fromRGB(35, 35, 45),
+    BtnH = Color3.fromRGB(45, 45, 58),
+    On = Color3.fromRGB(45, 120, 75),
+    Off = Color3.fromRGB(120, 42, 42),
+    T1 = Color3.fromRGB(230, 230, 240),
+    T2 = Color3.fromRGB(160, 160, 180),
+    T3 = Color3.fromRGB(90, 90, 115),
+    Sep = Color3.fromRGB(40, 40, 52),
+    TabA = Color3.fromRGB(32, 32, 42),
+    TabI = Color3.fromRGB(24, 24, 32),
+    Input = Color3.fromRGB(30, 30, 40),
+    PetS = Color3.fromRGB(45, 42, 65),
+    PetN = Color3.fromRGB(32, 32, 42),
 }
 
 -- ========== CLEANUP ==========
 pcall(function()
-    local old = CoreGui:FindFirstChild("BifrostHubV2") or CoreGui:FindFirstChild("BifrostLiteUI")
-    if old then old:Destroy() end
+    local g = CoreGui:FindFirstChild("BifrostHubV2")
+    if g then g:Destroy() end
+    g = CoreGui:FindFirstChild("BifrostLiteUI")
+    if g then g:Destroy() end
     local pg = Players.LocalPlayer:WaitForChild("PlayerGui")
-    local old2 = pg:FindFirstChild("BifrostHubV2") or pg:FindFirstChild("BifrostLiteUI")
-    if old2 then old2:Destroy() end
+    g = pg:FindFirstChild("BifrostHubV2")
+    if g then g:Destroy() end
+    g = pg:FindFirstChild("BifrostLiteUI")
+    if g then g:Destroy() end
 end)
 
 -- ========== SCREENGUI ==========
@@ -73,286 +86,513 @@ if not pcall(function() SG.Parent = CoreGui end) then
 end
 
 -- ========== MAIN FRAME ==========
-local MF = Instance.new("Frame",SG)
-MF.Name="Main" MF.Size=UDim2.new(0,380,0,430) MF.Position=UDim2.new(0.5,-190,0.5,-215)
-MF.BackgroundColor3=T.BG MF.BorderSizePixel=0 MF.Active=true MF.Draggable=true
-Instance.new("UICorner",MF).CornerRadius=UDim.new(0,8)
-
--- Top accent line
-local ta=Instance.new("Frame",MF) ta.Size=UDim2.new(1,0,0,2) ta.BackgroundColor3=T.Accent ta.BorderSizePixel=0
-
--- Title bar
-local tb=Instance.new("Frame",MF) tb.Size=UDim2.new(1,0,0,32) tb.Position=UDim2.new(0,0,0,2)
-tb.BackgroundColor3=T.TitleBar tb.BorderSizePixel=0
-
-local tl=Instance.new("TextLabel",tb) tl.Size=UDim2.new(1,-80,1,0) tl.Position=UDim2.new(0,14,0,0)
-tl.BackgroundTransparency=1 tl.Text="Bifrost Hub" tl.TextColor3=T.Accent
-tl.TextXAlignment=Enum.TextXAlignment.Left tl.Font=Enum.Font.GothamBold tl.TextSize=14
-
-local vl=Instance.new("TextLabel",tb) vl.Size=UDim2.new(0,24,0,14) vl.Position=UDim2.new(0,102,0.5,-7)
-vl.BackgroundColor3=T.AccentDim vl.BackgroundTransparency=0.5 vl.Text="v2" vl.TextColor3=T.T2
-vl.Font=Enum.Font.Gotham vl.TextSize=9 vl.BorderSizePixel=0
-Instance.new("UICorner",vl).CornerRadius=UDim.new(0,4)
-
--- Close btn
-local cb=Instance.new("TextButton",tb) cb.Size=UDim2.new(0,26,0,26) cb.Position=UDim2.new(1,-30,0.5,-13)
-cb.BackgroundColor3=T.TitleBar cb.Text="X" cb.TextColor3=T.T2 cb.Font=Enum.Font.GothamBold
-cb.TextSize=13 cb.BorderSizePixel=0 cb.AutoButtonColor=false
-Instance.new("UICorner",cb).CornerRadius=UDim.new(0,4)
-
--- Minimize btn
-local mb=Instance.new("TextButton",tb) mb.Size=UDim2.new(0,26,0,26) mb.Position=UDim2.new(1,-58,0.5,-13)
-mb.BackgroundColor3=T.TitleBar mb.Text="_" mb.TextColor3=T.T2 mb.Font=Enum.Font.GothamBold
-mb.TextSize=13 mb.BorderSizePixel=0 mb.AutoButtonColor=false
-Instance.new("UICorner",mb).CornerRadius=UDim.new(0,4)
+local SW = 155
+local MF = Instance.new("Frame", SG)
+MF.Name = "Main"
+MF.Size = UDim2.new(0, 560, 0, 420)
+MF.Position = UDim2.new(0.5, -280, 0.5, -210)
+MF.BackgroundColor3 = T.BG
+MF.BackgroundTransparency = 0.03
+MF.BorderSizePixel = 0
+MF.Active = true
+MF.Draggable = true
+Instance.new("UICorner", MF).CornerRadius = UDim.new(0, 10)
 
 -- ========== SIDEBAR ==========
-local SW=52
-local sb=Instance.new("Frame",MF) sb.Size=UDim2.new(0,SW,1,-34) sb.Position=UDim2.new(0,0,0,34)
-sb.BackgroundColor3=T.Sidebar sb.BorderSizePixel=0
-local sbl=Instance.new("UIListLayout",sb) sbl.Padding=UDim.new(0,2)
-local sbp=Instance.new("UIPadding",sb) sbp.PaddingTop=UDim.new(0,6) sbp.PaddingLeft=UDim.new(0,4) sbp.PaddingRight=UDim.new(0,4)
+local SB = Instance.new("Frame", MF)
+SB.Size = UDim2.new(0, SW, 1, 0)
+SB.BackgroundColor3 = T.Sidebar
+SB.BackgroundTransparency = 0.02
+SB.BorderSizePixel = 0
+Instance.new("UICorner", SB).CornerRadius = UDim.new(0, 10)
 
--- Divider
-local dv=Instance.new("Frame",MF) dv.Size=UDim2.new(0,1,1,-34) dv.Position=UDim2.new(0,SW,0,34)
-dv.BackgroundColor3=T.Sep dv.BorderSizePixel=0
+-- Title in sidebar
+local SBTitle = Instance.new("TextLabel", SB)
+SBTitle.Size = UDim2.new(1, -20, 0, 50)
+SBTitle.Position = UDim2.new(0, 15, 0, 8)
+SBTitle.BackgroundTransparency = 1
+SBTitle.Text = "Bifrost Hub"
+SBTitle.TextColor3 = T.T1
+SBTitle.TextXAlignment = Enum.TextXAlignment.Left
+SBTitle.Font = Enum.Font.GothamBold
+SBTitle.TextSize = 16
+
+-- Sidebar separator
+local SBSep = Instance.new("Frame", SB)
+SBSep.Size = UDim2.new(0.75, 0, 0, 1)
+SBSep.Position = UDim2.new(0.125, 0, 0, 55)
+SBSep.BackgroundColor3 = T.Sep
+SBSep.BorderSizePixel = 0
+
+-- Tab buttons container
+local TabBtnContainer = Instance.new("Frame", SB)
+TabBtnContainer.Size = UDim2.new(1, -16, 1, -68)
+TabBtnContainer.Position = UDim2.new(0, 8, 0, 64)
+TabBtnContainer.BackgroundTransparency = 1
+local TBLayout = Instance.new("UIListLayout", TabBtnContainer)
+TBLayout.Padding = UDim.new(0, 4)
+
+-- Divider line between sidebar and content
+local Dv = Instance.new("Frame", MF)
+Dv.Size = UDim2.new(0, 1, 1, -20)
+Dv.Position = UDim2.new(0, SW, 0, 10)
+Dv.BackgroundColor3 = T.Sep
+Dv.BorderSizePixel = 0
 
 -- ========== CONTENT AREA ==========
-local CA=Instance.new("Frame",MF) CA.Size=UDim2.new(1,-(SW+1),1,-34) CA.Position=UDim2.new(0,SW+1,0,34)
-CA.BackgroundColor3=T.Content CA.BorderSizePixel=0 CA.ClipsDescendants=true
+local CA = Instance.new("Frame", MF)
+CA.Size = UDim2.new(1, -(SW + 1), 1, 0)
+CA.Position = UDim2.new(0, SW + 1, 0, 0)
+CA.BackgroundColor3 = T.Content
+CA.BackgroundTransparency = 0.02
+CA.BorderSizePixel = 0
+CA.ClipsDescendants = true
+Instance.new("UICorner", CA).CornerRadius = UDim.new(0, 10)
+
+-- Content header (shows current tab name)
+local CHdr = Instance.new("TextLabel", CA)
+CHdr.Name = "TabHeader"
+CHdr.Size = UDim2.new(1, -80, 0, 40)
+CHdr.Position = UDim2.new(0, 18, 0, 5)
+CHdr.BackgroundTransparency = 1
+CHdr.Text = "Auto-Roll"
+CHdr.TextColor3 = T.T1
+CHdr.TextXAlignment = Enum.TextXAlignment.Left
+CHdr.Font = Enum.Font.GothamBold
+CHdr.TextSize = 15
+
+-- Minimize btn in content header
+local MinB = Instance.new("TextButton", CA)
+MinB.Size = UDim2.new(0, 28, 0, 28)
+MinB.Position = UDim2.new(1, -62, 0, 9)
+MinB.BackgroundColor3 = T.Btn
+MinB.Text = "_"
+MinB.TextColor3 = T.T2
+MinB.Font = Enum.Font.GothamBold
+MinB.TextSize = 14
+MinB.BorderSizePixel = 0
+MinB.AutoButtonColor = false
+Instance.new("UICorner", MinB).CornerRadius = UDim.new(0, 6)
+
+-- Close btn in content header
+local ClsB = Instance.new("TextButton", CA)
+ClsB.Size = UDim2.new(0, 28, 0, 28)
+ClsB.Position = UDim2.new(1, -30, 0, 9)
+ClsB.BackgroundColor3 = T.Btn
+ClsB.Text = "X"
+ClsB.TextColor3 = T.T2
+ClsB.Font = Enum.Font.GothamBold
+ClsB.TextSize = 14
+ClsB.BorderSizePixel = 0
+ClsB.AutoButtonColor = false
+Instance.new("UICorner", ClsB).CornerRadius = UDim.new(0, 6)
+
+-- Content separator
+local CSep = Instance.new("Frame", CA)
+CSep.Size = UDim2.new(1, -30, 0, 1)
+CSep.Position = UDim2.new(0, 15, 0, 44)
+CSep.BackgroundColor3 = T.Sep
+CSep.BorderSizePixel = 0
 
 -- ========== FLOATING ICON ==========
-local FI=Instance.new("TextButton",SG) FI.Size=UDim2.new(0,34,0,34) FI.Position=UDim2.new(0,20,0.5,-17)
-FI.BackgroundColor3=T.Accent FI.Text="B" FI.TextColor3=Color3.new(1,1,1) FI.Font=Enum.Font.GothamBold
-FI.TextSize=15 FI.BorderSizePixel=0 FI.Visible=false FI.Active=true FI.Draggable=true FI.AutoButtonColor=false
-Instance.new("UICorner",FI).CornerRadius=UDim.new(0.5,0)
+local FI = Instance.new("TextButton", SG)
+FI.Size = UDim2.new(0, 40, 0, 40)
+FI.Position = UDim2.new(0, 20, 0.5, -20)
+FI.BackgroundColor3 = T.Accent
+FI.Text = "B"
+FI.TextColor3 = Color3.new(1, 1, 1)
+FI.Font = Enum.Font.GothamBold
+FI.TextSize = 18
+FI.BorderSizePixel = 0
+FI.Visible = false
+FI.Active = true
+FI.Draggable = true
+FI.AutoButtonColor = false
+Instance.new("UICorner", FI).CornerRadius = UDim.new(0.5, 0)
 
 -- ========== TAB SYSTEM ==========
 local Tabs = {}
-local function CreateTab(name, short)
-    local bt=Instance.new("TextButton",sb) bt.Name="T_"..name bt.Size=UDim2.new(1,0,0,38)
-    bt.BackgroundColor3=T.TabI bt.Text=short bt.TextColor3=T.T3 bt.Font=Enum.Font.GothamSemibold
-    bt.TextSize=10 bt.BorderSizePixel=0 bt.AutoButtonColor=false
-    Instance.new("UICorner",bt).CornerRadius=UDim.new(0,6)
-    local ind=Instance.new("Frame",bt) ind.Size=UDim2.new(0,3,0.55,0) ind.Position=UDim2.new(0,-1,0.225,0)
-    ind.BackgroundColor3=T.Accent ind.BorderSizePixel=0 ind.Visible=false
-    Instance.new("UICorner",ind).CornerRadius=UDim.new(0,2)
-    local ct=Instance.new("ScrollingFrame",CA) ct.Name="C_"..name ct.Size=UDim2.new(1,-14,1,-6)
-    ct.Position=UDim2.new(0,7,0,3) ct.BackgroundTransparency=1 ct.ScrollBarThickness=3
-    ct.ScrollBarImageColor3=T.AccentDim ct.Visible=false ct.BorderSizePixel=0
-    ct.CanvasSize=UDim2.new(0,0,0,0) ct.AutomaticCanvasSize=Enum.AutomaticSize.Y
-    local ly=Instance.new("UIListLayout",ct) ly.Padding=UDim.new(0,5)
-    Tabs[name]={Button=bt,Content=ct,Indicator=ind}
+local TabLabels = {}
+local function CreateTab(name, icon)
+    local bt = Instance.new("TextButton", TabBtnContainer)
+    bt.Name = "T_" .. name
+    bt.Size = UDim2.new(1, 0, 0, 36)
+    bt.BackgroundColor3 = T.TabI
+    bt.BackgroundTransparency = 1
+    bt.Text = "  " .. (icon or "") .. "  " .. name
+    bt.TextColor3 = T.T3
+    bt.TextXAlignment = Enum.TextXAlignment.Left
+    bt.Font = Enum.Font.GothamSemibold
+    bt.TextSize = 14
+    bt.BorderSizePixel = 0
+    bt.AutoButtonColor = false
+    Instance.new("UICorner", bt).CornerRadius = UDim.new(0, 8)
+
+    local ct = Instance.new("ScrollingFrame", CA)
+    ct.Name = "C_" .. name
+    ct.Size = UDim2.new(1, -24, 1, -52)
+    ct.Position = UDim2.new(0, 12, 0, 50)
+    ct.BackgroundTransparency = 1
+    ct.ScrollBarThickness = 3
+    ct.ScrollBarImageColor3 = T.AccentDim
+    ct.Visible = false
+    ct.BorderSizePixel = 0
+    ct.CanvasSize = UDim2.new(0, 0, 0, 0)
+    ct.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Instance.new("UIListLayout", ct).Padding = UDim.new(0, 6)
+
+    Tabs[name] = {Button = bt, Content = ct}
+    TabLabels[name] = name
+
     bt.MouseButton1Click:Connect(function()
-        for n,d in pairs(Tabs) do
-            local a=(n==name) d.Content.Visible=a
-            d.Button.BackgroundColor3=a and T.TabA or T.TabI
-            d.Button.TextColor3=a and T.T1 or T.T3
-            d.Indicator.Visible=a
+        for n, d in pairs(Tabs) do
+            local a = (n == name)
+            d.Content.Visible = a
+            d.Button.BackgroundColor3 = a and T.TabA or T.TabI
+            d.Button.BackgroundTransparency = a and 0 or 1
+            d.Button.TextColor3 = a and T.Accent or T.T3
         end
+        CHdr.Text = name
     end)
     return ct
 end
 
 -- ========== HELPERS ==========
-local function Header(p,t)
-    local h=Instance.new("TextLabel",p) h.Size=UDim2.new(1,0,0,16) h.BackgroundTransparency=1
-    h.Text=string.upper(t) h.TextColor3=T.T3 h.TextXAlignment=Enum.TextXAlignment.Left
-    h.Font=Enum.Font.GothamBold h.TextSize=9 return h
+local function Header(p, t)
+    local f = Instance.new("Frame", p)
+    f.Size = UDim2.new(1, 0, 0, 28)
+    f.BackgroundTransparency = 1
+    local h = Instance.new("TextLabel", f)
+    h.Size = UDim2.new(1, 0, 1, 0)
+    h.BackgroundTransparency = 1
+    h.Text = t
+    h.TextColor3 = T.T1
+    h.TextXAlignment = Enum.TextXAlignment.Left
+    h.Font = Enum.Font.GothamBold
+    h.TextSize = 15
+    return h
 end
-local function Label(p,t)
-    local l=Instance.new("TextLabel",p) l.Size=UDim2.new(1,0,0,18) l.BackgroundTransparency=1
-    l.TextColor3=T.T2 l.Text=t l.TextXAlignment=Enum.TextXAlignment.Left
-    l.Font=Enum.Font.Gotham l.TextSize=11 return l
+
+local function Label(p, t)
+    local l = Instance.new("TextLabel", p)
+    l.Size = UDim2.new(1, 0, 0, 22)
+    l.BackgroundTransparency = 1
+    l.TextColor3 = T.T2
+    l.Text = t
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Font = Enum.Font.Gotham
+    l.TextSize = 13
+    return l
 end
-local function Btn(p,t,cb2)
-    local b=Instance.new("TextButton",p) b.Size=UDim2.new(1,0,0,28) b.BackgroundColor3=T.Btn
-    b.TextColor3=T.T1 b.Text=t b.Font=Enum.Font.GothamSemibold b.TextSize=11
-    b.BorderSizePixel=0 b.AutoButtonColor=false
-    Instance.new("UICorner",b).CornerRadius=UDim.new(0,5)
-    b.MouseEnter:Connect(function() b.BackgroundColor3=T.BtnH end)
-    b.MouseLeave:Connect(function() if not b:GetAttribute("IT") then b.BackgroundColor3=T.Btn end end)
+
+local function Btn(p, t, cb2)
+    local b = Instance.new("TextButton", p)
+    b.Size = UDim2.new(1, 0, 0, 34)
+    b.BackgroundColor3 = T.Btn
+    b.TextColor3 = T.T1
+    b.Text = t
+    b.Font = Enum.Font.GothamSemibold
+    b.TextSize = 13
+    b.BorderSizePixel = 0
+    b.AutoButtonColor = false
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+    b.MouseEnter:Connect(function() b.BackgroundColor3 = T.BtnH end)
+    b.MouseLeave:Connect(function() if not b:GetAttribute("IT") then b.BackgroundColor3 = T.Btn end end)
     if cb2 then b.MouseButton1Click:Connect(cb2) end
     return b
 end
-local function Toggle(p,t,def,cb2)
-    local st=def
-    local b=Instance.new("TextButton",p) b.Size=UDim2.new(1,0,0,28)
-    b.BackgroundColor3=st and T.On or T.Off b.TextColor3=T.T1
-    b.Text=t..": "..(st and "ON" or "OFF") b.Font=Enum.Font.GothamSemibold b.TextSize=11
-    b.BorderSizePixel=0 b.AutoButtonColor=false b:SetAttribute("IT",true)
-    Instance.new("UICorner",b).CornerRadius=UDim.new(0,5)
+
+local function Toggle(p, t, def, cb2)
+    local st = def
+    local b = Instance.new("TextButton", p)
+    b.Size = UDim2.new(1, 0, 0, 34)
+    b.BackgroundColor3 = st and T.On or T.Off
+    b.TextColor3 = T.T1
+    b.Text = t .. ": " .. (st and "ON" or "OFF")
+    b.Font = Enum.Font.GothamSemibold
+    b.TextSize = 13
+    b.BorderSizePixel = 0
+    b.AutoButtonColor = false
+    b:SetAttribute("IT", true)
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
     b.MouseButton1Click:Connect(function()
-        st=not st b.Text=t..": "..(st and "ON" or "OFF")
-        b.BackgroundColor3=st and T.On or T.Off cb2(st)
+        st = not st
+        b.Text = t .. ": " .. (st and "ON" or "OFF")
+        b.BackgroundColor3 = st and T.On or T.Off
+        cb2(st)
     end)
-    return function(ns) st=ns b.Text=t..": "..(st and "ON" or "OFF") b.BackgroundColor3=st and T.On or T.Off end
+    return function(ns)
+        st = ns
+        b.Text = t .. ": " .. (st and "ON" or "OFF")
+        b.BackgroundColor3 = st and T.On or T.Off
+    end
 end
-local function SafeSetUI(lbl,key,txt)
-    if AppState[key]~=txt then AppState[key]=txt if lbl then pcall(function() lbl.Text=txt end) end end
+
+local function SafeSetUI(lbl, key, txt)
+    if AppState[key] ~= txt then
+        AppState[key] = txt
+        if lbl then pcall(function() lbl.Text = txt end) end
+    end
 end
 
 -- ========== UI STATE ==========
-local function MinimizeUI() MF.Visible=false FI.Visible=true AppState.UIVisible=false end
-local function RestoreUI() MF.Visible=true FI.Visible=false AppState.UIVisible=true end
+local function MinimizeUI() MF.Visible = false FI.Visible = true AppState.UIVisible = false end
+local function RestoreUI() MF.Visible = true FI.Visible = false AppState.UIVisible = true end
 local function ToggleUI() if AppState.UIDestroyed then return end if AppState.UIVisible then MinimizeUI() else RestoreUI() end end
 local function DestroyUI()
-    AppState.UIDestroyed=true
-    for _,c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
+    AppState.UIDestroyed = true
+    for _, c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
     table.clear(Connections)
     pcall(function() RunService:UnbindFromRenderStep("Bifrost_StateMachine") end)
     pcall(function() SG:Destroy() end)
 end
 
--- Close with confirmation
-local ccf=false
-cb.MouseButton1Click:Connect(function()
+local ccf = false
+ClsB.MouseButton1Click:Connect(function()
     if ccf then DestroyUI() else
-        ccf=true cb.Text="?" cb.TextColor3=Color3.fromRGB(255,80,80)
-        task.delay(3,function() if not AppState.UIDestroyed then ccf=false pcall(function() cb.Text="X" cb.TextColor3=T.T2 end) end end)
+        ccf = true
+        ClsB.Text = "?"
+        ClsB.TextColor3 = Color3.fromRGB(255, 80, 80)
+        task.delay(3, function()
+            if not AppState.UIDestroyed then
+                ccf = false
+                pcall(function() ClsB.Text = "X" ClsB.TextColor3 = T.T2 end)
+            end
+        end)
     end
 end)
-mb.MouseButton1Click:Connect(function() MinimizeUI() end)
+MinB.MouseButton1Click:Connect(function() MinimizeUI() end)
 FI.MouseButton1Click:Connect(function() RestoreUI() end)
 
 -- ========== LOAD & TABS ==========
 LoadConfig()
-local TabRoll=CreateTab("Roll","Roll")
-local TabFarm=CreateTab("Farm","Farm")
-local TabSet=CreateTab("Settings","Set.")
-Tabs["Roll"].Content.Visible=true Tabs["Roll"].Button.BackgroundColor3=T.TabA
-Tabs["Roll"].Button.TextColor3=T.T1 Tabs["Roll"].Indicator.Visible=true
+local TabRoll = CreateTab("Auto-Roll", ">")
+local TabFarm = CreateTab("Farm", ">")
+local TabSet = CreateTab("Settings", ">")
+
+-- Activate first tab
+Tabs["Auto-Roll"].Content.Visible = true
+Tabs["Auto-Roll"].Button.BackgroundColor3 = T.TabA
+Tabs["Auto-Roll"].Button.BackgroundTransparency = 0
+Tabs["Auto-Roll"].Button.TextColor3 = T.Accent
+CHdr.Text = "Auto-Roll"
 
 -- ========== [TAB] AUTO-ROLL ==========
-Header(TabRoll,"INVENTORY")
-local TokenLabel=Label(TabRoll,"Rename Tokens: Searching...")
-Header(TabRoll,"PET SELECTION")
-local PC=Instance.new("Frame",TabRoll) PC.Size=UDim2.new(1,0,0,100) PC.BackgroundColor3=T.Input PC.BorderSizePixel=0
-Instance.new("UICorner",PC).CornerRadius=UDim.new(0,5)
-local PS=Instance.new("ScrollingFrame",PC) PS.Size=UDim2.new(1,-6,1,-6) PS.Position=UDim2.new(0,3,0,3)
-PS.BackgroundTransparency=1 PS.ScrollBarThickness=2 PS.ScrollBarImageColor3=T.AccentDim PS.BorderSizePixel=0
-local PL=Instance.new("UIListLayout",PS) PL.Padding=UDim.new(0,2)
+Header(TabRoll, "Inventory")
+local TokenLabel = Label(TabRoll, "Rename Tokens: Searching...")
+
+Header(TabRoll, "Pet Selection")
+local PC = Instance.new("Frame", TabRoll)
+PC.Size = UDim2.new(1, 0, 0, 120)
+PC.BackgroundColor3 = T.Input
+PC.BorderSizePixel = 0
+Instance.new("UICorner", PC).CornerRadius = UDim.new(0, 6)
+
+local PS = Instance.new("ScrollingFrame", PC)
+PS.Size = UDim2.new(1, -10, 1, -10)
+PS.Position = UDim2.new(0, 5, 0, 5)
+PS.BackgroundTransparency = 1
+PS.ScrollBarThickness = 3
+PS.ScrollBarImageColor3 = T.AccentDim
+PS.BorderSizePixel = 0
+local PL = Instance.new("UIListLayout", PS)
+PL.Padding = UDim.new(0, 3)
 
 local function RefreshPetsUI()
-    for _,c in ipairs(PS:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
-    AppState.SelectedPetUUIDs={} table.clear(OptionsToUUIDs)
+    for _, c in ipairs(PS:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+    AppState.SelectedPetUUIDs = {}
+    table.clear(OptionsToUUIDs)
     pcall(function()
-        local units=Omni.Data.Inventory.Units
-        if units then for uuid,pet in pairs(units) do
-            local dn=pet.CustomName or pet.Name or "?"
-            local p=pet.RenameBuffs and pet.RenameBuffs["Power"] or 0
-            local d=pet.RenameBuffs and pet.RenameBuffs["Damage"] or 0
-            local c2=pet.RenameBuffs and pet.RenameBuffs["Crystals"] or 0
-            local opt=string.format("%s (P:%.1f D:%.1f C:%.1f)",dn,p,d,c2)
-            local pb=Instance.new("TextButton",PS) pb.Size=UDim2.new(1,0,0,22) pb.BackgroundColor3=T.PetN
-            pb.TextColor3=T.T2 pb.Text="  [ ]  "..opt pb.TextXAlignment=Enum.TextXAlignment.Left
-            pb.Font=Enum.Font.Gotham pb.TextSize=10 pb.BorderSizePixel=0 pb.AutoButtonColor=false
-            Instance.new("UICorner",pb).CornerRadius=UDim.new(0,4)
-            local sel=false
-            pb.MouseButton1Click:Connect(function()
-                sel=not sel
-                if sel then pb.Text="  [X]  "..opt pb.TextColor3=T.T1 pb.BackgroundColor3=T.PetS table.insert(AppState.SelectedPetUUIDs,uuid)
-                else pb.Text="  [ ]  "..opt pb.TextColor3=T.T2 pb.BackgroundColor3=T.PetN
-                    for i,v in ipairs(AppState.SelectedPetUUIDs) do if v==uuid then table.remove(AppState.SelectedPetUUIDs,i) break end end
-                end
-            end)
-        end end
+        local units = Omni.Data.Inventory.Units
+        if units then
+            for uuid, pet in pairs(units) do
+                local dn = pet.CustomName or pet.Name or "?"
+                local p = pet.RenameBuffs and pet.RenameBuffs["Power"] or 0
+                local d = pet.RenameBuffs and pet.RenameBuffs["Damage"] or 0
+                local c2 = pet.RenameBuffs and pet.RenameBuffs["Crystals"] or 0
+                local opt = string.format("%s  (P:%.1f  D:%.1f  C:%.1f)", dn, p, d, c2)
+                local pb = Instance.new("TextButton", PS)
+                pb.Size = UDim2.new(1, 0, 0, 26)
+                pb.BackgroundColor3 = T.PetN
+                pb.TextColor3 = T.T2
+                pb.Text = "   [ ]  " .. opt
+                pb.TextXAlignment = Enum.TextXAlignment.Left
+                pb.Font = Enum.Font.Gotham
+                pb.TextSize = 12
+                pb.BorderSizePixel = 0
+                pb.AutoButtonColor = false
+                Instance.new("UICorner", pb).CornerRadius = UDim.new(0, 5)
+                local sel = false
+                pb.MouseButton1Click:Connect(function()
+                    sel = not sel
+                    if sel then
+                        pb.Text = "   [x]  " .. opt
+                        pb.TextColor3 = T.T1
+                        pb.BackgroundColor3 = T.PetS
+                        table.insert(AppState.SelectedPetUUIDs, uuid)
+                    else
+                        pb.Text = "   [ ]  " .. opt
+                        pb.TextColor3 = T.T2
+                        pb.BackgroundColor3 = T.PetN
+                        for i, v in ipairs(AppState.SelectedPetUUIDs) do
+                            if v == uuid then table.remove(AppState.SelectedPetUUIDs, i) break end
+                        end
+                    end
+                end)
+            end
+        end
     end)
-    PS.CanvasSize=UDim2.new(0,0,0,PL.AbsoluteContentSize.Y)
+    PS.CanvasSize = UDim2.new(0, 0, 0, PL.AbsoluteContentSize.Y)
 end
-Btn(TabRoll,"Refresh Pet List",function() RefreshPetsUI() end)
+
+Btn(TabRoll, "Refresh Pet List", function() RefreshPetsUI() end)
 RefreshPetsUI()
 
-Header(TabRoll,"ROLL CONFIG")
-local function NextArr(a,c) for i,v in ipairs(a) do if v==c then return a[i+1] or a[1] end end return a[1] end
+Header(TabRoll, "Roll Configuration")
+local function NextArr(a, c) for i, v in ipairs(a) do if v == c then return a[i + 1] or a[1] end end return a[1] end
+
 local BB
-BB=Btn(TabRoll,"Buff: "..HubConfig.SelectedBuff,function()
-    HubConfig.SelectedBuff=NextArr(Buffs,HubConfig.SelectedBuff) BB.Text="Buff: "..HubConfig.SelectedBuff SaveConfig()
+BB = Btn(TabRoll, "Buff: " .. HubConfig.SelectedBuff, function()
+    HubConfig.SelectedBuff = NextArr(Buffs, HubConfig.SelectedBuff)
+    BB.Text = "Buff: " .. HubConfig.SelectedBuff
+    SaveConfig()
 end)
 
-local VF=Instance.new("Frame",TabRoll) VF.Size=UDim2.new(1,0,0,28) VF.BackgroundTransparency=1
-local VS=Btn(VF,"-",function()
-    HubConfig.TargetValue=math.max(0.10,HubConfig.TargetValue-0.05)
-    VF:FindFirstChild("VL").Text=string.format("Value: %.2f",HubConfig.TargetValue) SaveConfig()
-end) VS.Size=UDim2.new(0.2,0,1,0)
-local VLbl=Label(VF,string.format("Value: %.2f",HubConfig.TargetValue))
-VLbl.Name="VL" VLbl.Size=UDim2.new(0.6,0,1,0) VLbl.Position=UDim2.new(0.2,0,0,0) VLbl.TextXAlignment=Enum.TextXAlignment.Center
-local VA=Btn(VF,"+",function()
-    HubConfig.TargetValue=math.min(3.00,HubConfig.TargetValue+0.05)
-    VLbl.Text=string.format("Value: %.2f",HubConfig.TargetValue) SaveConfig()
-end) VA.Size=UDim2.new(0.2,0,1,0) VA.Position=UDim2.new(0.8,0,0,0)
+local VF = Instance.new("Frame", TabRoll)
+VF.Size = UDim2.new(1, 0, 0, 34)
+VF.BackgroundTransparency = 1
+
+local VS = Btn(VF, "-", function()
+    HubConfig.TargetValue = math.max(0.10, HubConfig.TargetValue - 0.05)
+    VF:FindFirstChild("VL").Text = string.format("Target Value: %.2f", HubConfig.TargetValue)
+    SaveConfig()
+end)
+VS.Size = UDim2.new(0.18, 0, 1, 0)
+
+local VLbl = Label(VF, string.format("Target Value: %.2f", HubConfig.TargetValue))
+VLbl.Name = "VL"
+VLbl.Size = UDim2.new(0.64, 0, 1, 0)
+VLbl.Position = UDim2.new(0.18, 0, 0, 0)
+VLbl.TextXAlignment = Enum.TextXAlignment.Center
+VLbl.TextSize = 13
+
+local VA = Btn(VF, "+", function()
+    HubConfig.TargetValue = math.min(3.00, HubConfig.TargetValue + 0.05)
+    VLbl.Text = string.format("Target Value: %.2f", HubConfig.TargetValue)
+    SaveConfig()
+end)
+VA.Size = UDim2.new(0.18, 0, 1, 0)
+VA.Position = UDim2.new(0.82, 0, 0, 0)
 
 local SetAutoRoll
-SetAutoRoll=Toggle(TabRoll,"Auto-Roll",false,function(val)
-    if val and #AppState.SelectedPetUUIDs==0 then
-        local ot=tl.Text tl.Text="  SELECT A PET!" tl.TextColor3=Color3.fromRGB(255,100,100)
-        task.delay(2,function() tl.Text=ot tl.TextColor3=T.Accent end)
-        SetAutoRoll(false) return
+SetAutoRoll = Toggle(TabRoll, "Auto-Roll", false, function(val)
+    if val and #AppState.SelectedPetUUIDs == 0 then
+        local ot = SBTitle.Text
+        SBTitle.Text = "Select a pet!"
+        SBTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
+        task.delay(2, function() SBTitle.Text = ot SBTitle.TextColor3 = T.T1 end)
+        SetAutoRoll(false)
+        return
     end
-    AppState.AutoRollEnabled=val
+    AppState.AutoRollEnabled = val
 end)
 
 -- ========== [TAB] FARM ==========
-Header(TabFarm,"BOSS")
+Header(TabFarm, "Boss Target")
 local BBtn
-BBtn=Btn(TabFarm,"Boss: "..HubConfig.SelectedBoss,function()
-    HubConfig.SelectedBoss=NextArr(Bosses,HubConfig.SelectedBoss) BBtn.Text="Boss: "..HubConfig.SelectedBoss SaveConfig()
+BBtn = Btn(TabFarm, "Boss: " .. HubConfig.SelectedBoss, function()
+    HubConfig.SelectedBoss = NextArr(Bosses, HubConfig.SelectedBoss)
+    BBtn.Text = "Boss: " .. HubConfig.SelectedBoss
+    SaveConfig()
 end)
-Header(TabFarm,"AUTOMATION")
-local SetAutoHop=Toggle(TabFarm,"Auto Server-Hop",HubConfig.AutoHop,function(v) HubConfig.AutoHop=v SaveConfig() end)
-local SetAutoFarm=Toggle(TabFarm,"Auto-Farm Boss",HubConfig.AutoFarm,function(v) HubConfig.AutoFarm=v SaveConfig() end)
-Header(TabFarm,"STATUS")
-local FSL=Label(TabFarm,"Status: Waiting...")
-Header(TabFarm,"POSITION")
+
+Header(TabFarm, "Automation")
+local SetAutoHop = Toggle(TabFarm, "Auto Server-Hop", HubConfig.AutoHop, function(v) HubConfig.AutoHop = v SaveConfig() end)
+local SetAutoFarm = Toggle(TabFarm, "Auto-Farm Boss", HubConfig.AutoFarm, function(v) HubConfig.AutoFarm = v SaveConfig() end)
+
+Header(TabFarm, "Status")
+local FSL = Label(TabFarm, "Status: Waiting...")
+
+Header(TabFarm, "Position Anchor")
 local ABtn
-ABtn=Btn(TabFarm,"Set Farm Anchor (Stand here)",function()
-    local ch=Players.LocalPlayer.Character local hr=ch and ch:FindFirstChild("HumanoidRootPart")
+ABtn = Btn(TabFarm, "Set Farm Anchor (Stand here)", function()
+    local ch = Players.LocalPlayer.Character
+    local hr = ch and ch:FindFirstChild("HumanoidRootPart")
     if hr then
-        HubConfig.AnchorX=hr.Position.X HubConfig.AnchorY=hr.Position.Y HubConfig.AnchorZ=hr.Position.Z SaveConfig()
-        SafeSetUI(FSL,"FarmText","Status: Anchor saved!")
-        local ot=ABtn.Text ABtn.Text=">> Saved!" ABtn.BackgroundColor3=Color3.fromRGB(40,130,50)
-        task.delay(1.5,function() pcall(function() ABtn.Text=ot ABtn.BackgroundColor3=T.Btn end) end)
+        HubConfig.AnchorX = hr.Position.X
+        HubConfig.AnchorY = hr.Position.Y
+        HubConfig.AnchorZ = hr.Position.Z
+        SaveConfig()
+        SafeSetUI(FSL, "FarmText", "Status: Anchor saved!")
+        local ot = ABtn.Text
+        ABtn.Text = ">> Saved!"
+        ABtn.BackgroundColor3 = Color3.fromRGB(40, 130, 50)
+        task.delay(1.5, function() pcall(function() ABtn.Text = ot ABtn.BackgroundColor3 = T.Btn end) end)
     end
 end)
-Btn(TabFarm,"Force Server Hop",function() ForceServerHop() end)
+
+Btn(TabFarm, "Force Server Hop", function() ForceServerHop() end)
 
 -- ========== [TAB] SETTINGS ==========
-Header(TabSet,"UI CONTROLS")
-Btn(TabSet,"Minimize UI",function() MinimizeUI() end)
+Header(TabSet, "UI Controls")
+Btn(TabSet, "Minimize UI", function() MinimizeUI() end)
+
 local delBtn
-delBtn=Btn(TabSet,"Delete UI (Destroy)",function()
-    if delBtn:GetAttribute("confirm") then DestroyUI() else
-        delBtn:SetAttribute("confirm",true) delBtn.Text="Click again to confirm" delBtn.BackgroundColor3=Color3.fromRGB(140,40,40)
-        task.delay(3,function() if not AppState.UIDestroyed then pcall(function()
-            delBtn:SetAttribute("confirm",false) delBtn.Text="Delete UI (Destroy)" delBtn.BackgroundColor3=T.Btn
-        end) end end)
+delBtn = Btn(TabSet, "Delete UI (Destroy)", function()
+    if delBtn:GetAttribute("confirm") then
+        DestroyUI()
+    else
+        delBtn:SetAttribute("confirm", true)
+        delBtn.Text = "Click again to confirm"
+        delBtn.BackgroundColor3 = Color3.fromRGB(140, 40, 40)
+        task.delay(3, function()
+            if not AppState.UIDestroyed then
+                pcall(function()
+                    delBtn:SetAttribute("confirm", false)
+                    delBtn.Text = "Delete UI (Destroy)"
+                    delBtn.BackgroundColor3 = T.Btn
+                end)
+            end
+        end)
     end
 end)
-Header(TabSet,"KEYBIND")
+
+Header(TabSet, "Keybind")
 local kbKey = HubConfig.UIKeybind or "RightShift"
 local kbBtn
 local kbListening = false
-kbBtn=Btn(TabSet,"Toggle Key: "..kbKey,function()
+kbBtn = Btn(TabSet, "Toggle Key: " .. kbKey, function()
     if kbListening then return end
-    kbListening=true kbBtn.Text="Press any key..." kbBtn.BackgroundColor3=T.Accent
+    kbListening = true
+    kbBtn.Text = "Press any key..."
+    kbBtn.BackgroundColor3 = T.Accent
 end)
-table.insert(Connections, UIS.InputBegan:Connect(function(inp,gpe)
+
+table.insert(Connections, UIS.InputBegan:Connect(function(inp, gpe)
     if AppState.UIDestroyed then return end
     if kbListening and not gpe then
-        kbListening=false kbKey=inp.KeyCode.Name HubConfig.UIKeybind=kbKey SaveConfig()
-        pcall(function() kbBtn.Text="Toggle Key: "..kbKey kbBtn.BackgroundColor3=T.Btn end)
+        kbListening = false
+        kbKey = inp.KeyCode.Name
+        HubConfig.UIKeybind = kbKey
+        SaveConfig()
+        pcall(function() kbBtn.Text = "Toggle Key: " .. kbKey kbBtn.BackgroundColor3 = T.Btn end)
         return
     end
-    if not gpe and inp.KeyCode.Name==kbKey then ToggleUI() end
+    if not gpe and inp.KeyCode.Name == kbKey then ToggleUI() end
 end))
-Header(TabSet,"CONFIG")
-Btn(TabSet,"Save Settings",function()
-    SaveConfig() local ot=tl.Text tl.Text="  Saved!" tl.TextColor3=Color3.fromRGB(100,255,100)
-    task.delay(2,function() pcall(function() tl.Text=ot tl.TextColor3=T.Accent end) end)
+
+Header(TabSet, "Config")
+Btn(TabSet, "Save Settings", function()
+    SaveConfig()
+    local ot = SBTitle.Text
+    SBTitle.Text = "Saved!"
+    SBTitle.TextColor3 = Color3.fromRGB(100, 255, 100)
+    task.delay(2, function() pcall(function() SBTitle.Text = ot SBTitle.TextColor3 = T.T1 end) end)
 end)
-Header(TabSet,"INFO")
-Label(TabSet,"Bifrost Hub v2.0 - Vanilla UI")
-Label(TabSet,"Performance-first | Zero dependencies")
+
+Header(TabSet, "Info")
+Label(TabSet, "Bifrost Hub v2.0 - Vanilla UI")
+Label(TabSet, "Performance-first | Zero dependencies")
 
 -- ========== GAME LOGIC (preserved) ==========
 local function TeardownAndHop(placeId, serverId)

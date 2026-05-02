@@ -378,10 +378,7 @@ Tabs["Auto-Roll"].Button.TextColor3 = T.Accent
 CHdr.Text = "Auto-Roll"
 
 -- ========== [TAB] AUTO-ROLL ==========
-Header(TabRoll, "Inventory")
 local TokenLabel = Label(TabRoll, "Rename Tokens: Searching...")
-
-Header(TabRoll, "Pet Selection")
 local PC = Instance.new("Frame", TabRoll)
 PC.Size = UDim2.new(1, 0, 0, 120)
 PC.BackgroundColor3 = T.Input
@@ -448,7 +445,8 @@ end
 Btn(TabRoll, "Refresh Pet List", function() RefreshPetsUI() end)
 RefreshPetsUI()
 
-Header(TabRoll, "Roll Configuration")
+-- spacer
+local _s1 = Instance.new("Frame", TabRoll) _s1.Size = UDim2.new(1, 0, 0, 4) _s1.BackgroundTransparency = 1
 local function NextArr(a, c) for i, v in ipairs(a) do if v == c then return a[i + 1] or a[1] end end return a[1] end
 
 local BB
@@ -498,7 +496,6 @@ SetAutoRoll = Toggle(TabRoll, "Auto-Roll", false, function(val)
 end)
 
 -- ========== [TAB] FARM ==========
-Header(TabFarm, "Boss Target")
 local BBtn
 BBtn = Btn(TabFarm, "Boss: " .. HubConfig.SelectedBoss, function()
     HubConfig.SelectedBoss = NextArr(Bosses, HubConfig.SelectedBoss)
@@ -506,14 +503,15 @@ BBtn = Btn(TabFarm, "Boss: " .. HubConfig.SelectedBoss, function()
     SaveConfig()
 end)
 
-Header(TabFarm, "Automation")
+
 local SetAutoHop = Toggle(TabFarm, "Auto Server-Hop", HubConfig.AutoHop, function(v) HubConfig.AutoHop = v SaveConfig() end)
 local SetAutoFarm = Toggle(TabFarm, "Auto-Farm Boss", HubConfig.AutoFarm, function(v) HubConfig.AutoFarm = v SaveConfig() end)
 
-Header(TabFarm, "Status")
+-- spacer
+local _s2 = Instance.new("Frame", TabFarm) _s2.Size = UDim2.new(1, 0, 0, 4) _s2.BackgroundTransparency = 1
 local FSL = Label(TabFarm, "Status: Waiting...")
 
-Header(TabFarm, "Position Anchor")
+
 local ABtn
 ABtn = Btn(TabFarm, "Set Farm Anchor (Stand here)", function()
     local ch = Players.LocalPlayer.Character
@@ -534,7 +532,7 @@ end)
 Btn(TabFarm, "Force Server Hop", function() ForceServerHop() end)
 
 -- ========== [TAB] SETTINGS ==========
-Header(TabSet, "UI Controls")
+-- ========== [TAB] SETTINGS ==========
 Btn(TabSet, "Minimize UI", function() MinimizeUI() end)
 
 local delBtn
@@ -557,7 +555,8 @@ delBtn = Btn(TabSet, "Delete UI (Destroy)", function()
     end
 end)
 
-Header(TabSet, "Keybind")
+-- spacer
+local _s3 = Instance.new("Frame", TabSet) _s3.Size = UDim2.new(1, 0, 0, 4) _s3.BackgroundTransparency = 1
 local kbKey = HubConfig.UIKeybind or "RightShift"
 local kbBtn
 local kbListening = false
@@ -581,7 +580,8 @@ table.insert(Connections, UIS.InputBegan:Connect(function(inp, gpe)
     if not gpe and inp.KeyCode.Name == kbKey then ToggleUI() end
 end))
 
-Header(TabSet, "Config")
+-- spacer
+local _s4 = Instance.new("Frame", TabSet) _s4.Size = UDim2.new(1, 0, 0, 4) _s4.BackgroundTransparency = 1
 Btn(TabSet, "Save Settings", function()
     SaveConfig()
     local ot = SBTitle.Text
@@ -590,7 +590,8 @@ Btn(TabSet, "Save Settings", function()
     task.delay(2, function() pcall(function() SBTitle.Text = ot SBTitle.TextColor3 = T.T1 end) end)
 end)
 
-Header(TabSet, "Info")
+-- spacer
+local _s5 = Instance.new("Frame", TabSet) _s5.Size = UDim2.new(1, 0, 0, 4) _s5.BackgroundTransparency = 1
 Label(TabSet, "Bifrost Hub v2.0 - Vanilla UI")
 Label(TabSet, "Performance-first | Zero dependencies")
 

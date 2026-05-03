@@ -790,8 +790,9 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
     local isGM = (HubConfig.AutoTrialEasy or HubConfig.AutoTrialMedium)
     
     if isGM and not AppState.IsHopping then
-        if ct - AppState.LastFarmTick >= 1.0 then
-            AppState.LastFarmTick = ct
+        AppState.LastGMTick = AppState.LastGMTick or 0
+        if ct - AppState.LastGMTick >= 5.0 then
+            AppState.LastGMTick = ct
             pcall(function()
                 local pg = Players.LocalPlayer:FindFirstChild("PlayerGui")
                 local gmUI = pg and pg:FindFirstChild("UI") and pg.UI:FindFirstChild("HUD") and pg.UI.HUD:FindFirstChild("Gamemodes")
@@ -821,7 +822,6 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
                             AppState.LeftGamemode = true
                         end
                     end
-                    SafeSetUI(FSL, "FarmText", "Status: Playing " .. activeMode)
                 else
                     if AppState.LeftGamemode then
                         AppState.LeftGamemode = false
@@ -841,11 +841,12 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
                             dr:FireServer(unpack({ { { "General", "Gamemodes", "Join", "Trial Medium", n=4 }, "\002" } }))
                         end
                     end
-                    SafeSetUI(FSL, "FarmText", "Status: Joining Gamemode...")
                 end
             end)
         end
-    elseif isFarming and not AppState.IsHopping then
+    end
+    
+    if isFarming and not AppState.IsHopping then
         if ct - AppState.StartupTick < 15 then
             SafeSetUI(FSL, "FarmText", "Status: Loading map (" .. math.floor(15 - (ct - AppState.StartupTick)) .. "s)")
         elseif ct - AppState.LastFarmTick >= 0.5 then

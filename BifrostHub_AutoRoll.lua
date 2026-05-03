@@ -15,7 +15,7 @@ local ConfigName = "BifrostHub_Config.json"
 local HubConfig = {
     SelectedBuff = "Power", TargetValue = 1.00, SelectedBoss = "Yuje",
     AutoHop = false, AutoFarm = false, AutoFarmStones = false,
-    AnchorX = nil, AnchorY = nil, AnchorZ = nil,
+    AnchorX = nil, AnchorY = nil, AnchorZ = nil, UseAnchor = true,
     UIKeybind = "RightShift",
 }
 local AppState = {
@@ -36,7 +36,10 @@ end
 local function LoadConfig()
     if readfile then
         local s,d = pcall(function() return HttpService:JSONDecode(readfile(ConfigName)) end)
-        if s and type(d)=="table" then for k,v in pairs(d) do HubConfig[k]=v end end
+        if s and type(d)=="table" then 
+            for k,v in pairs(d) do HubConfig[k]=v end 
+            if HubConfig.UseAnchor == nil then HubConfig.UseAnchor = true end
+        end
     end
 end
 
@@ -518,6 +521,7 @@ local FSL = Label(TabFarm, "Status: Waiting...")
 
 
 local ABtn
+local SetUseAnchor = Toggle(TabFarm, "Lock to Anchor", HubConfig.UseAnchor, function(v) HubConfig.UseAnchor = v SaveConfig() end)
 ABtn = Btn(TabFarm, "Set Farm Anchor (Stand here)", function()
     local ch = Players.LocalPlayer.Character
     local hr = ch and ch:FindFirstChild("HumanoidRootPart")
@@ -753,7 +757,7 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
                     if dr then dr:FireServer(unpack({ { { "General", "Attack", "Click", {}, n = 4 }, "\002" } })) end
                 else
                     -- Return to Anchor
-                    if HubConfig.AnchorX and HubConfig.AnchorY and HubConfig.AnchorZ then
+                    if HubConfig.UseAnchor and HubConfig.AnchorX and HubConfig.AnchorY and HubConfig.AnchorZ then
                         if hr and hm and hm.Health > 0 then
                             local ap = Vector3.new(HubConfig.AnchorX, HubConfig.AnchorY, HubConfig.AnchorZ)
                             if (hr.Position - ap).Magnitude > 5 then

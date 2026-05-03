@@ -16,6 +16,8 @@ local HubConfig = {
     SelectedBuff = "Power", TargetValue = 1.00, SelectedBoss = "Yuje",
     AutoHop = false, AutoFarm = false, AutoFarmStones = false,
     AnchorX = nil, AnchorY = nil, AnchorZ = nil, UseAnchor = true,
+    AutoTrialEasy = false, LeaveWaveEasy = 50,
+    AutoTrialMedium = false, LeaveWaveMedium = 100, TeleportAfterGM = false,
     UIKeybind = "RightShift",
 }
 local AppState = {
@@ -39,6 +41,8 @@ local function LoadConfig()
         if s and type(d)=="table" then 
             for k,v in pairs(d) do HubConfig[k]=v end 
             if HubConfig.UseAnchor == nil then HubConfig.UseAnchor = true end
+            if HubConfig.LeaveWaveEasy == nil then HubConfig.LeaveWaveEasy = 50 end
+            if HubConfig.LeaveWaveMedium == nil then HubConfig.LeaveWaveMedium = 100 end
         end
     end
 end
@@ -317,6 +321,39 @@ local function Toggle(p, t, def, cb2)
     end
 end
 
+local function WaveSlider(parent, title, initial, cb)
+    local vf = Instance.new("Frame", parent)
+    vf.Size = UDim2.new(1, 0, 0, 34)
+    vf.BackgroundTransparency = 1
+    
+    local vl = Label(vf, title .. ": " .. tostring(initial))
+    vl.Name = "VL"
+    vl.Size = UDim2.new(0.64, 0, 1, 0)
+    vl.Position = UDim2.new(0.18, 0, 0, 0)
+    vl.TextXAlignment = Enum.TextXAlignment.Center
+    vl.TextSize = 13
+    
+    local vs = Btn(vf, "-10", function() end)
+    vs.Size = UDim2.new(0.18, 0, 1, 0)
+    
+    local va = Btn(vf, "+10", function() end)
+    va.Size = UDim2.new(0.18, 0, 1, 0)
+    va.Position = UDim2.new(0.82, 0, 0, 0)
+    
+    local val = initial
+    vs.MouseButton1Click:Connect(function()
+        val = math.max(1, val - 10)
+        vl.Text = title .. ": " .. tostring(val)
+        cb(val)
+    end)
+    va.MouseButton1Click:Connect(function()
+        val = math.min(500, val + 10)
+        vl.Text = title .. ": " .. tostring(val)
+        cb(val)
+    end)
+    return vf
+end
+
 local function SafeSetUI(lbl, key, txt)
     if AppState[key] ~= txt then
         AppState[key] = txt
@@ -357,6 +394,7 @@ FI.MouseButton1Click:Connect(function() RestoreUI() end)
 LoadConfig()
 local TabRoll = CreateTab("Auto-Roll", ">")
 local TabFarm = CreateTab("Farm", ">")
+local TabGamemodes = CreateTab("Gamemodes", ">")
 local TabSet = CreateTab("Settings", ">")
 
 -- Activate first tab
@@ -539,6 +577,23 @@ ABtn = Btn(TabFarm, "Set Farm Anchor (Stand here)", function()
 end)
 
 Btn(TabFarm, "Force Server Hop", function() ForceServerHop() end)
+
+-- ========== [TAB] GAMEMODES ==========
+
+Label(TabGamemodes, "Settings")
+Toggle(TabGamemodes, "Teleport to Anchor After", HubConfig.TeleportAfterGM, function(v) HubConfig.TeleportAfterGM = v SaveConfig() end)
+
+local _s3 = Instance.new("Frame", TabGamemodes) _s3.Size = UDim2.new(1, 0, 0, 4) _s3.BackgroundTransparency = 1
+
+Label(TabGamemodes, "Trial Easy")
+WaveSlider(TabGamemodes, "Leave at Wave", HubConfig.LeaveWaveEasy, function(v) HubConfig.LeaveWaveEasy = v SaveConfig() end)
+Toggle(TabGamemodes, "Auto Run Easy", HubConfig.AutoTrialEasy, function(v) HubConfig.AutoTrialEasy = v SaveConfig() end)
+
+local _s4 = Instance.new("Frame", TabGamemodes) _s4.Size = UDim2.new(1, 0, 0, 4) _s4.BackgroundTransparency = 1
+
+Label(TabGamemodes, "Trial Medium")
+WaveSlider(TabGamemodes, "Leave at Wave", HubConfig.LeaveWaveMedium, function(v) HubConfig.LeaveWaveMedium = v SaveConfig() end)
+Toggle(TabGamemodes, "Auto Run Medium", HubConfig.AutoTrialMedium, function(v) HubConfig.AutoTrialMedium = v SaveConfig() end)
 
 -- ========== [TAB] SETTINGS ==========
 -- ========== [TAB] SETTINGS ==========
@@ -732,7 +787,65 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
     end
 
     local isFarming = (HubConfig.AutoFarm or HubConfig.AutoFarmStones)
-    if isFarming and not AppState.IsHopping then
+    local isGM = (HubConfig.AutoTrialEasy or HubConfig.AutoTrialMedium)
+    
+    if isGM and not AppState.IsHopping then
+        if ct - AppState.LastFarmTick >= 1.0 then
+            AppState.LastFarmTick = ct
+            pcall(function()
+                local pg = Players.LocalPlayer:FindFirstChild("PlayerGui")
+                local gmUI = pg and pg:FindFirstChild("UI") and pg.UI:FindFirstChild("HUD") and pg.UI.HUD:FindFirstChild("Gamemodes")
+                local inMode = false
+                local activeMode = ""
+                local leaveWave = 999
+                
+                if gmUI then
+                    if gmUI:FindFirstChild("Trial Easy") and gmUI["Trial Easy"].Visible then
+                        inMode = true
+                        activeMode = "Trial Easy"
+                        leaveWave = HubConfig.LeaveWaveEasy
+                    elseif gmUI:FindFirstChild("Trial Medium") and gmUI["Trial Medium"].Visible then
+                        inMode = true
+                        activeMode = "Trial Medium"
+                        leaveWave = HubConfig.LeaveWaveMedium
+                    end
+                end
+                
+                if inMode then
+                    local wVal = gmUI[activeMode]:FindFirstChild("Main") and gmUI[activeMode].Main:FindFirstChild("Wave") and gmUI[activeMode].Main.Wave:FindFirstChild("Value")
+                    if wVal then
+                        local n = tonumber(string.match(wVal.Text, "%d+"))
+                        if n and n >= leaveWave then
+                            local dr = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
+                            if dr then dr:FireServer(unpack({ { { "Player", "Teleport", "Teleport", "Leveling Verse", 1, n=5 }, "\002" } })) end
+                            AppState.LeftGamemode = true
+                        end
+                    end
+                    SafeSetUI(FSL, "FarmText", "Status: Playing " .. activeMode)
+                else
+                    if AppState.LeftGamemode then
+                        AppState.LeftGamemode = false
+                        if HubConfig.TeleportAfterGM and HubConfig.AnchorX then
+                            local ch = Players.LocalPlayer.Character
+                            if ch and ch:FindFirstChild("HumanoidRootPart") then
+                                ch:PivotTo(CFrame.new(HubConfig.AnchorX, HubConfig.AnchorY, HubConfig.AnchorZ))
+                            end
+                        end
+                    end
+                    
+                    local dr = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
+                    if dr then
+                        if HubConfig.AutoTrialEasy then
+                            dr:FireServer(unpack({ { { "General", "Gamemodes", "Join", "Trial Easy", n=4 }, "\002" } }))
+                        elseif HubConfig.AutoTrialMedium then
+                            dr:FireServer(unpack({ { { "General", "Gamemodes", "Join", "Trial Medium", n=4 }, "\002" } }))
+                        end
+                    end
+                    SafeSetUI(FSL, "FarmText", "Status: Joining Gamemode...")
+                end
+            end)
+        end
+    elseif isFarming and not AppState.IsHopping then
         if ct - AppState.StartupTick < 15 then
             SafeSetUI(FSL, "FarmText", "Status: Loading map (" .. math.floor(15 - (ct - AppState.StartupTick)) .. "s)")
         elseif ct - AppState.LastFarmTick >= 0.5 then
@@ -788,7 +901,7 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
                 end
             end)
         end
-    elseif not isFarming and not AppState.IsHopping then
+    elseif not isFarming and not isGM and not AppState.IsHopping then
         SafeSetUI(FSL, "FarmText", "Status: Stopped")
     end
 

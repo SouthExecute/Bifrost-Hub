@@ -435,19 +435,34 @@ RefreshPetsUI()
 local _s1 = Instance.new("Frame", TabRoll) _s1.Size = UDim2.new(1, 0, 0, 4) _s1.BackgroundTransparency = 1
 local function NextArr(a, c) for i, v in ipairs(a) do if v == c then return a[i + 1] or a[1] end end return a[1] end
 
+local function GetValueLimits()
+    if HubConfig.SelectedBuff == "Power" then return 1.75, 1.70 end
+    return 0.75, 0.70
+end
+
+local VF -- forward declare to use in BB
+
 local BB
 BB = Btn(TabRoll, "Buff: " .. HubConfig.SelectedBuff, function()
     HubConfig.SelectedBuff = NextArr(Buffs, HubConfig.SelectedBuff)
     BB.Text = "Buff: " .. HubConfig.SelectedBuff
+    local maxV = GetValueLimits()
+    if HubConfig.TargetValue > maxV then
+        HubConfig.TargetValue = maxV
+        if VF and VF:FindFirstChild("VL") then VF.VL.Text = string.format("Target Value: %.2f", HubConfig.TargetValue) end
+    end
     SaveConfig()
 end)
 
-local VF = Instance.new("Frame", TabRoll)
+VF = Instance.new("Frame", TabRoll)
 VF.Size = UDim2.new(1, 0, 0, 34)
 VF.BackgroundTransparency = 1
 
 local VS = Btn(VF, "-", function()
-    HubConfig.TargetValue = math.max(0.10, HubConfig.TargetValue - 0.05)
+    local maxV, slowV = GetValueLimits()
+    local step = (HubConfig.TargetValue > slowV + 0.001) and 0.01 or 0.05
+    HubConfig.TargetValue = math.max(0.10, HubConfig.TargetValue - step)
+    HubConfig.TargetValue = math.floor(HubConfig.TargetValue * 100 + 0.5) / 100
     VF:FindFirstChild("VL").Text = string.format("Target Value: %.2f", HubConfig.TargetValue)
     SaveConfig()
 end)
@@ -461,7 +476,10 @@ VLbl.TextXAlignment = Enum.TextXAlignment.Center
 VLbl.TextSize = 13
 
 local VA = Btn(VF, "+", function()
-    HubConfig.TargetValue = math.min(3.00, HubConfig.TargetValue + 0.05)
+    local maxV, slowV = GetValueLimits()
+    local step = (HubConfig.TargetValue >= slowV - 0.001) and 0.01 or 0.05
+    HubConfig.TargetValue = math.min(maxV, HubConfig.TargetValue + step)
+    HubConfig.TargetValue = math.floor(HubConfig.TargetValue * 100 + 0.5) / 100
     VLbl.Text = string.format("Target Value: %.2f", HubConfig.TargetValue)
     SaveConfig()
 end)

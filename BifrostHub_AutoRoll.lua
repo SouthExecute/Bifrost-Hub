@@ -14,7 +14,7 @@ local Omni = require(ReplicatedStorage:WaitForChild("Omni"))
 local ConfigName = "BifrostHub_Config.json"
 local HubConfig = {
     SelectedBuff = "Power", TargetValue = 1.00, SelectedBoss = "Yuje",
-    AutoHop = false, AutoFarm = false,
+    AutoHop = false, AutoFarm = false, AutoFarmStones = false,
     AnchorX = nil, AnchorY = nil, AnchorZ = nil,
     UIKeybind = "RightShift",
 }
@@ -510,6 +510,7 @@ end)
 
 local SetAutoHop = Toggle(TabFarm, "Auto Server-Hop", HubConfig.AutoHop, function(v) HubConfig.AutoHop = v SaveConfig() end)
 local SetAutoFarm = Toggle(TabFarm, "Auto-Farm Boss", HubConfig.AutoFarm, function(v) HubConfig.AutoFarm = v SaveConfig() end)
+local SetAutoStones = Toggle(TabFarm, "Auto-Farm Ores (Stones)", HubConfig.AutoFarmStones, function(v) HubConfig.AutoFarmStones = v SaveConfig() end)
 
 -- spacer
 local _s2 = Instance.new("Frame", TabFarm) _s2.Size = UDim2.new(1, 0, 0, 4) _s2.BackgroundTransparency = 1
@@ -660,6 +661,37 @@ local function GetBossInWorkspace()
     return nil
 end
 
+local function GetOreInWorkspace()
+    local candidates = {}
+    local c = Workspace:FindFirstChild("Client")
+    if c and c:FindFirstChild("Enemies") then
+        for _, obj in ipairs(c.Enemies:GetChildren()) do table.insert(candidates, obj) end
+    end
+    
+    local s = Workspace:FindFirstChild("Server")
+    if s and s:FindFirstChild("Enemies") and s.Enemies:FindFirstChild("Ores") then
+        for _, oreFolder in ipairs(s.Enemies.Ores:GetChildren()) do
+            if oreFolder:FindFirstChild("Drops") then
+                for _, obj in ipairs(oreFolder.Drops:GetChildren()) do table.insert(candidates, obj) end
+            else
+                table.insert(candidates, oreFolder)
+            end
+        end
+    end
+    
+    for _, obj in ipairs(candidates) do
+        if obj:IsA("Model") and string.find(string.lower(obj.Name), "ore") then
+            local hum = obj:FindFirstChild("Humanoid")
+            if hum then
+                if hum.Health > 0 then return obj end
+            elseif obj.PrimaryPart then
+                return obj
+            end
+        end
+    end
+    return nil
+end
+
 local function GetTokens()
     local tokens = 0
     local found = false
@@ -695,40 +727,64 @@ RunService:BindToRenderStep("Bifrost_StateMachine", Enum.RenderPriority.Camera.V
         if found then SafeSetUI(TokenLabel, "TokenText", "Rename Tokens: " .. tostring(tokens)) end
     end
 
-    if HubConfig.AutoFarm and not AppState.IsHopping then
+    local isFarming = (HubConfig.AutoFarm or HubConfig.AutoFarmStones)
+    if isFarming and not AppState.IsHopping then
         if ct - AppState.StartupTick < 15 then
             SafeSetUI(FSL, "FarmText", "Status: Loading map (" .. math.floor(15 - (ct - AppState.StartupTick)) .. "s)")
         elseif ct - AppState.LastFarmTick >= 0.5 then
             AppState.LastFarmTick = ct
-            if HubConfig.AnchorX and HubConfig.AnchorY and HubConfig.AnchorZ then
+            
+            pcall(function()
                 local ch = Players.LocalPlayer.Character
                 local hr = ch and ch:FindFirstChild("HumanoidRootPart")
                 local hm = ch and ch:FindFirstChild("Humanoid")
-                if hr and hm and hm.Health > 0 then
-                    local ap = Vector3.new(HubConfig.AnchorX, HubConfig.AnchorY, HubConfig.AnchorZ)
-                    if (hr.Position - ap).Magnitude > 5 then
-                        hr.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                        hr.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                        ch:PivotTo(CFrame.new(ap))
-                    end
-                end
-            end
-            pcall(function()
-                local boss = GetBossInWorkspace()
-                if boss then
-                    SafeSetUI(FSL, "FarmText", "Status: Attacking " .. boss.Name)
+                
+                local ore = nil
+                if HubConfig.AutoFarmStones then ore = GetOreInWorkspace() end
+                
+                if ore and hr and hm and hm.Health > 0 then
+                    -- Teleport to Ore
+                    hr.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                    hr.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                    ch:PivotTo(CFrame.new(ore:GetPivot().Position + Vector3.new(0, 3, 0)))
+                    SafeSetUI(FSL, "FarmText", "Status: Mining " .. ore.Name)
+                    
                     local dr = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
                     if dr then dr:FireServer(unpack({ { { "General", "Attack", "Click", {}, n = 4 }, "\002" } })) end
                 else
-                    if HubConfig.AutoHop then
-                        if tick() - AppState.LastHopAttempt > 5 then ForceServerHop() end
+                    -- Return to Anchor
+                    if HubConfig.AnchorX and HubConfig.AnchorY and HubConfig.AnchorZ then
+                        if hr and hm and hm.Health > 0 then
+                            local ap = Vector3.new(HubConfig.AnchorX, HubConfig.AnchorY, HubConfig.AnchorZ)
+                            if (hr.Position - ap).Magnitude > 5 then
+                                hr.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                hr.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                ch:PivotTo(CFrame.new(ap))
+                            end
+                        end
+                    end
+                    
+                    -- Boss Farm fallback
+                    if HubConfig.AutoFarm then
+                        local boss = GetBossInWorkspace()
+                        if boss then
+                            SafeSetUI(FSL, "FarmText", "Status: Attacking " .. boss.Name)
+                            local dr = ReplicatedStorage:FindFirstChild("BridgeNet") and ReplicatedStorage.BridgeNet:FindFirstChild("dataRemoteEvent")
+                            if dr then dr:FireServer(unpack({ { { "General", "Attack", "Click", {}, n = 4 }, "\002" } })) end
+                        else
+                            if HubConfig.AutoHop then
+                                if tick() - AppState.LastHopAttempt > 5 then ForceServerHop() end
+                            else
+                                SafeSetUI(FSL, "FarmText", "Status: Boss absent.")
+                            end
+                        end
                     else
-                        SafeSetUI(FSL, "FarmText", "Status: Boss absent.")
+                        SafeSetUI(FSL, "FarmText", "Status: Waiting at Anchor...")
                     end
                 end
             end)
         end
-    elseif not HubConfig.AutoFarm and not AppState.IsHopping then
+    elseif not isFarming and not AppState.IsHopping then
         SafeSetUI(FSL, "FarmText", "Status: Stopped")
     end
 
